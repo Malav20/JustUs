@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Room, RoomEvent, Track, RemoteTrack, RemoteParticipant } from "livekit-client";
 import { supabase } from "@/lib/supabase";
+import { useWakeLock } from "@/lib/wakeLock";
 import { 
   Play, 
   Pause, 
@@ -31,6 +32,9 @@ export default function SandboxPage() {
 
   // Sync state
   const [isPlaying, setIsPlaying] = useState(false);
+
+  // Screen Wake Lock automatically synchronizes with video playback
+  useWakeLock(isPlaying);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [driftMs, setDriftMs] = useState(0);
@@ -200,6 +204,7 @@ export default function SandboxPage() {
 
   // Video Event Handlers (Outbound Sync)
   const onLocalPlay = () => {
+    setIsPlaying(true);
     if (isSyncActionInProgress.current || !channelRef.current) return;
     const time = videoRef.current?.currentTime || 0;
     addLog(`Local PLAY triggered at ${time.toFixed(2)}s -> Broadcasting`);
@@ -211,6 +216,7 @@ export default function SandboxPage() {
   };
 
   const onLocalPause = () => {
+    setIsPlaying(false);
     if (isSyncActionInProgress.current || !channelRef.current) return;
     const time = videoRef.current?.currentTime || 0;
     addLog(`Local PAUSE triggered at ${time.toFixed(2)}s -> Broadcasting`);
@@ -436,6 +442,8 @@ export default function SandboxPage() {
                   controls
                   onPlay={onLocalPlay}
                   onPause={onLocalPause}
+                  onEnded={() => setIsPlaying(false)}
+                  onEmptied={() => setIsPlaying(false)}
                   onSeeked={onLocalSeeked}
                   onTimeUpdate={() => {
                     if (videoRef.current) {

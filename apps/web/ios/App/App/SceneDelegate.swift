@@ -19,6 +19,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
             webView.configuration.websiteDataStore = WKWebsiteDataStore.default()
             webView.allowsBackForwardNavigationGestures = true
             webView.configuration.userContentController.add(self, name: "streamAuth")
+            webView.configuration.userContentController.add(self, name: "wakeLock")
             let userScriptSource = """
             (function() {
                 var s = document.createElement('script');
@@ -38,6 +39,10 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     deinit {
         webView?.removeObserver(self, forKeyPath: #keyPath(WKWebView.url))
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "streamAuth")
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "wakeLock")
+        DispatchQueue.main.async {
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
     }
     
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -49,6 +54,12 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
                 var request = URLRequest(url: url)
                 request.setValue(self.safariDesktopUserAgent, forHTTPHeaderField: "User-Agent")
                 self.webView?.load(request)
+            }
+        } else if message.name == "wakeLock",
+                  let dict = message.body as? [String: Any],
+                  let keepAwake = dict["keepAwake"] as? Bool {
+            DispatchQueue.main.async {
+                UIApplication.shared.isIdleTimerDisabled = keepAwake
             }
         }
     }
@@ -145,5 +156,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
         SceneDelegateProxy.shared.scene(scene, continue: userActivity)
+    }
+
+    func sceneDidEnterBackground(_ scene: UIScene) {
+        DispatchQueue.main.async {
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
     }
 }

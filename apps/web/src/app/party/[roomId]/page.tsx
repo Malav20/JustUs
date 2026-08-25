@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
@@ -16,6 +16,7 @@ import {
   setLogLevel,
   LogLevel,
 } from "livekit-client";
+import { setAppWakeLock } from "@/lib/wakeLock";
 
 setLogLevel(LogLevel.silent);
 
@@ -131,9 +132,11 @@ export default function MobileWatchPartyPage() {
     channel
       .on("broadcast", { event: "PLAY" }, () => {
         if (mainVideoRef.current && mainVideoRef.current.paused) mainVideoRef.current.play();
+        setAppWakeLock(true);
       })
       .on("broadcast", { event: "PAUSE" }, () => {
         if (mainVideoRef.current && !mainVideoRef.current.paused) mainVideoRef.current.pause();
+        setAppWakeLock(false);
       })
       .on("broadcast", { event: "SEEK" }, ({ payload }) => {
         if (mainVideoRef.current && Math.abs(mainVideoRef.current.currentTime - payload.time) > 1.5) {
@@ -159,6 +162,7 @@ export default function MobileWatchPartyPage() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      setAppWakeLock(false);
       if (localVideoTrackRef.current) {
         localVideoTrackRef.current.stop();
         localVideoTrackRef.current.mediaStreamTrack?.stop();
@@ -178,6 +182,7 @@ export default function MobileWatchPartyPage() {
 
   // Sync main video events
   const handleLocalPlay = () => {
+    setAppWakeLock(true);
     if (channelRef.current && (channelRef.current as any).state === "joined") {
       channelRef.current.send({
         type: "broadcast",
@@ -188,6 +193,7 @@ export default function MobileWatchPartyPage() {
   };
 
   const handleLocalPause = () => {
+    setAppWakeLock(false);
     if (channelRef.current && (channelRef.current as any).state === "joined") {
       channelRef.current.send({
         type: "broadcast",
@@ -338,6 +344,8 @@ export default function MobileWatchPartyPage() {
           onPlay={handleLocalPlay}
           onPause={handleLocalPause}
           onSeeked={handleLocalSeek}
+          onEnded={() => setAppWakeLock(false)}
+          onEmptied={() => setAppWakeLock(false)}
           className="w-full h-full object-contain bg-black"
         />
       ) : (

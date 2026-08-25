@@ -79,7 +79,60 @@
     return null;
   }
 
+  // ─────────────────────────────────────────────────────────────────
+  // SCREEN WAKE LOCK CONTROLLER (Keep Screen Awake while Playing)
+  // ─────────────────────────────────────────────────────────────────
+  let overlayWakeLockSentinel = null;
+  let isWakeLockRequested = false;
+
+  async function setWakeLock(enable) {
+    isWakeLockRequested = enable;
+
+    // 1. Android Native Bridge
+    try {
+      if (window.AndroidWakeLock && typeof window.AndroidWakeLock.setKeepScreenOn === "function") {
+        window.AndroidWakeLock.setKeepScreenOn(enable);
+      }
+    } catch (e) {}
+
+    // 2. iOS WKWebView Message Handler Bridge
+    try {
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.wakeLock) {
+        window.webkit.messageHandlers.wakeLock.postMessage({ keepAwake: enable });
+      }
+    } catch (e) {}
+
+    // 3. Web Screen Wake Lock API (Safari 16.4+, Chrome, Edge, Mobile Browsers)
+    try {
+      if ("wakeLock" in navigator && typeof navigator.wakeLock.request === "function") {
+        if (enable) {
+          if (!overlayWakeLockSentinel || overlayWakeLockSentinel.released) {
+            overlayWakeLockSentinel = await navigator.wakeLock.request("screen");
+            overlayWakeLockSentinel.addEventListener("release", () => {
+              overlayWakeLockSentinel = null;
+            });
+          }
+        } else {
+          if (overlayWakeLockSentinel && !overlayWakeLockSentinel.released) {
+            await overlayWakeLockSentinel.release();
+            overlayWakeLockSentinel = null;
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Handle visibility change to re-acquire wake lock if tab is focused during playback
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && (isWakeLockRequested || isVideoPlaying())) {
+        setWakeLock(true);
+      }
+    });
+  }
+
   function playVideo() {
+    setWakeLock(true);
     const netflixPlayer = getNetflixPlayer();
     if (netflixPlayer && typeof netflixPlayer.play === "function") {
       try {
@@ -96,6 +149,7 @@
   }
 
   function pauseVideo() {
+    setWakeLock(false);
     const netflixPlayer = getNetflixPlayer();
     if (netflixPlayer && typeof netflixPlayer.pause === "function") {
       try {
@@ -1091,6 +1145,7 @@
     boundVideoEl = v;
 
     v.addEventListener("play", () => {
+      setWakeLock(true);
       if (isSyncActionInProgress || !activeChannel) return;
       const time = v.currentTime;
       activeChannel.send({
@@ -1101,7 +1156,12 @@
       addEventLog(`▶️ You played the video at ${formatTime(time)}`, currentUserName);
     });
 
+    v.addEventListener("playing", () => {
+      setWakeLock(true);
+    });
+
     v.addEventListener("pause", () => {
+      setWakeLock(false);
       if (isSyncActionInProgress || !activeChannel) return;
       const time = v.currentTime;
       activeChannel.send({
@@ -1110,6 +1170,14 @@
         payload: { time, isPlaying: false, sender: currentUserName, sentAt: Date.now() },
       });
       addEventLog(`⏸️ You paused the video at ${formatTime(time)}`, currentUserName);
+    });
+
+    v.addEventListener("ended", () => {
+      setWakeLock(false);
+    });
+
+    v.addEventListener("emptied", () => {
+      setWakeLock(false);
     });
 
     v.addEventListener("seeked", () => {
@@ -1156,10 +1224,14 @@
     }
   }
 
-  // Periodic video and URL watcher to catch dynamic DOM changes
+  // Periodic video, URL, and wake lock watcher to catch dynamic DOM changes
   setInterval(() => {
     attachLocalPlayerListeners();
     checkUrlChange();
+    const playing = isVideoPlaying();
+    if (playing !== isWakeLockRequested) {
+      setWakeLock(playing);
+    }
   }, 2000);
 
   // Check URL hash for auto-join (#justus=ju_xxx)
@@ -1175,6 +1247,7 @@
   checkUrlHash();
 
   function leaveParty() {
+    setWakeLock(false);
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (activeChannel && supabaseClient) {
       supabaseClient.removeChannel(activeChannel);

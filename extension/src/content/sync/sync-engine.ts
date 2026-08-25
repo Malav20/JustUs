@@ -26,6 +26,9 @@ export class SyncEngine {
   private heartbeatTimer: any = null;
   private stateRequestRetryTimer: any = null;
 
+  // Screen Wake Lock Sentinel
+  private wakeLockSentinel: any = null;
+
   // Callbacks
   private onDriftUpdate?: (driftMs: number) => void;
   private onChatReceived?: (message: ChatMessage) => void;
@@ -33,6 +36,26 @@ export class SyncEngine {
   private onParticipantLeft?: (userName: string) => void;
   private onPlaybackAction?: (action: "play" | "pause" | "seek", time: number, sender: string) => void;
   private onConnectionStateChange?: (status: "connected" | "disconnected" | "error") => void;
+
+  private async setScreenWakeLock(enable: boolean) {
+    try {
+      if ("wakeLock" in navigator && typeof (navigator as any).wakeLock?.request === "function") {
+        if (enable) {
+          if (!this.wakeLockSentinel || this.wakeLockSentinel.released) {
+            this.wakeLockSentinel = await (navigator as any).wakeLock.request("screen");
+            this.wakeLockSentinel.addEventListener("release", () => {
+              this.wakeLockSentinel = null;
+            });
+          }
+        } else {
+          if (this.wakeLockSentinel && !this.wakeLockSentinel.released) {
+            await this.wakeLockSentinel.release();
+            this.wakeLockSentinel = null;
+          }
+        }
+      }
+    } catch (e) {}
+  }
 
   constructor(
     adapter: IPlayerAdapter,
@@ -331,11 +354,13 @@ export class SyncEngine {
 
     if (event === "play") {
       console.log(`[JustUS] Local PLAY at ${time.toFixed(2)}s -> Outbound broadcast`);
+      this.setScreenWakeLock(true);
       this.broadcast("PLAY", payload);
       this.persistRoomState(time, true);
       if (this.onPlaybackAction) this.onPlaybackAction("play", time, this.userName);
     } else if (event === "pause") {
       console.log(`[JustUS] Local PAUSE at ${time.toFixed(2)}s -> Outbound broadcast`);
+      this.setScreenWakeLock(false);
       this.broadcast("PAUSE", payload);
       this.persistRoomState(time, false);
       if (this.onPlaybackAction) this.onPlaybackAction("pause", time, this.userName);
@@ -374,6 +399,7 @@ export class SyncEngine {
     const senderName = payload.sender || "Friend";
     console.log(`[JustUs] Remote PLAY received from ${senderName} at ${payload.time.toFixed(2)}s`);
     this.isInitialSyncCompleted = true;
+    this.setScreenWakeLock(true);
     if (this.onPlaybackAction) this.onPlaybackAction("play", payload.time, senderName);
     this.withSyncLock(async () => {
       const latency = Math.max(0, (Date.now() - payload.sentAt) / 1000);
@@ -390,6 +416,7 @@ export class SyncEngine {
     const senderName = payload.sender || "Friend";
     console.log(`[JustUs] Remote PAUSE received from ${senderName} at ${payload.time.toFixed(2)}s`);
     this.isInitialSyncCompleted = true;
+    this.setScreenWakeLock(false);
     if (this.onPlaybackAction) this.onPlaybackAction("pause", payload.time, senderName);
     this.withSyncLock(async () => {
       await this.adapter.pause();
@@ -566,6 +593,7 @@ export class SyncEngine {
   }
 
   public stop() {
+    this.setScreenWakeLock(false);
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.stateRequestRetryTimer) clearTimeout(this.stateRequestRetryTimer);
     if (this.channel) {
