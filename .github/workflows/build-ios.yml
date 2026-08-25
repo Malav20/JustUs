@@ -47,6 +47,13 @@ jobs:
           cp -r App.xcarchive/Products/Applications/App.app Payload/
           zip -r JustUS.ipa Payload/
 
+      - name: Upload IPA to Supabase Storage
+        env:
+          SUPABASE_URL: "https://djuqnhqedykhectfhzba.supabase.co"
+          SUPABASE_SERVICE_ROLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqdXFuaHFlZHlraGVjdGZoemJhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzYzMzE3NywiZXhwIjoyMTAzMjA5MTc3fQ.-3pFyBLu28GY1zlWd2yNQp2V4s8qH3ia-BQ_9HwePJk"
+        run: |
+          node scripts/upload-to-supabase.mjs apps/web/ios/App/JustUS.ipa JustUS.ipa
+
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
+const SUPABASE_STORAGE_BASE = "https://djuqnhqedykhectfhzba.supabase.co/storage/v1/object/public/builds";
+
 export default function DownloadsPage() {
   const [copied, setCopied] = useState(false);
 
@@ -11,6 +13,10 @@ export default function DownloadsPage() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const extensionUrl = `${SUPABASE_STORAGE_BASE}/justus-extension.zip`;
+  const iosIpaUrl = `${SUPABASE_STORAGE_BASE}/JustUS.ipa`;
+  const androidApkUrl = `${SUPABASE_STORAGE_BASE}/JustUS.apk`;
 
   return (
     <div className="relative min-h-screen bg-[#090A12] text-slate-100 overflow-hidden font-sans selection:bg-rose-500 selection:text-white">
@@ -90,8 +96,8 @@ export default function DownloadsPage() {
               </div>
 
               <a
-                href="/justus-extension.zip"
-                download
+                href={extensionUrl}
+                download="justus-extension.zip"
                 className="px-5 py-2.5 bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white font-bold text-xs rounded-xl text-center shadow-lg shadow-rose-600/30 transition-all shrink-0 flex items-center justify-center gap-1.5"
               >
                 <span>⚡</span>
@@ -145,19 +151,29 @@ export default function DownloadsPage() {
                 </div>
               </div>
 
-              <a
-                href="https://github.com/Malav20/JustUs/releases/latest/download/JustUS.ipa"
-                download="JustUS.ipa"
-                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl text-center shadow-lg shadow-purple-600/30 transition-all shrink-0 flex items-center justify-center gap-1.5"
-              >
-                <span>🍎</span>
-                <span>Download iOS App (.ipa)</span>
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href={iosIpaUrl}
+                  download="JustUS.ipa"
+                  className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl text-center shadow-lg shadow-purple-600/30 transition-all shrink-0 flex items-center justify-center gap-1.5"
+                >
+                  <span>🍎</span>
+                  <span>Download iOS App (.ipa)</span>
+                </a>
+              </div>
             </div>
 
             <div className="mt-5 pt-4 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-400 bg-black/20 rounded-xl px-4 py-2.5">
               <span>Ready for sideloading via <strong>Sideloadly</strong>, <strong>AltStore</strong>, <strong>TrollStore</strong>, or <strong>Scarlet</strong></span>
-              <span className="text-purple-300 font-bold text-[10px] uppercase">Built via GitHub Actions</span>
+              <a
+                href="https://github.com/Malav20/JustUs/actions"
+                target="_blank"
+                rel="noreferrer"
+                className="text-purple-300 hover:text-purple-200 font-bold text-[10px] uppercase underline flex items-center gap-1"
+              >
+                <span>📦 GitHub CI Artifacts</span>
+                <span>↗</span>
+              </a>
             </div>
           </div>
 
@@ -182,19 +198,29 @@ export default function DownloadsPage() {
                 </div>
               </div>
 
-              <a
-                href="https://github.com/Malav20/JustUs/releases/latest/download/JustUS.apk"
-                download="JustUS.apk"
-                className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl text-center shadow-lg shadow-emerald-600/30 transition-all shrink-0 flex items-center justify-center gap-1.5"
-              >
-                <span>⚡</span>
-                <span>Download Android APK (.apk)</span>
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href={androidApkUrl}
+                  download="JustUS.apk"
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl text-center shadow-lg shadow-emerald-600/30 transition-all shrink-0 flex items-center justify-center gap-1.5"
+                >
+                  <span>⚡</span>
+                  <span>Download Android APK (.apk)</span>
+                </a>
+              </div>
             </div>
 
             <div className="mt-5 pt-4 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-400 bg-black/20 rounded-xl px-4 py-2.5">
               <span>Direct install on any Android phone or tablet (allow install unknown apps)</span>
-              <span className="text-emerald-300 font-bold text-[10px] uppercase">Built via GitHub Actions</span>
+              <a
+                href="https://github.com/Malav20/JustUs/actions"
+                target="_blank"
+                rel="noreferrer"
+                className="text-emerald-300 hover:text-emerald-200 font-bold text-[10px] uppercase underline flex items-center gap-1"
+              >
+                <span>📦 GitHub CI Artifacts</span>
+                <span>↗</span>
+              </a>
             </div>
           </div>
         </div>
