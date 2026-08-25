@@ -110,42 +110,6 @@ public class MainActivity extends BridgeActivity {
         setupFloatingHubButton();
     }
 
-    private String cachedOverlayScript = null;
-
-    private String getOverlayScript() {
-        if (cachedOverlayScript != null && !cachedOverlayScript.isEmpty()) {
-            return cachedOverlayScript;
-        }
-        try {
-            java.io.InputStream is = getAssets().open("public/party-overlay.js");
-            java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(is));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
-            reader.close();
-            cachedOverlayScript = sb.toString();
-            return cachedOverlayScript;
-        } catch (Exception e) {
-            try {
-                java.io.InputStream is = getAssets().open("party-overlay.js");
-                java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(is));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line).append("\n");
-                }
-                reader.close();
-                cachedOverlayScript = sb.toString();
-                return cachedOverlayScript;
-            } catch (Exception ex) {
-                // Ignore fallback
-            }
-        }
-        return null;
-    }
-
     private void handleUrlChange(WebView view, String url) {
         if (view == null || url == null) return;
 
@@ -166,22 +130,18 @@ public class MainActivity extends BridgeActivity {
         });
 
         if (isExternal) {
-            String script = getOverlayScript();
-            if (script != null && !script.isEmpty()) {
-                view.evaluateJavascript(script, null);
-            } else {
-                String injectionScript =
-                    "(function() {" +
-                    "  try { Object.defineProperty(navigator, 'platform', { get: function() { return 'Win32'; } }); } catch(e) {}" +
-                    "  if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) return;" +
-                    "  fetch('https://just-us-web.vercel.app/party-overlay.js?t=' + Date.now()).then(r => r.text()).then(code => eval(code)).catch(() => {" +
-                    "    var s = document.createElement('script');" +
-                    "    s.src = 'https://just-us-web.vercel.app/party-overlay.js?t=' + Date.now();" +
-                    "    (document.head || document.documentElement).appendChild(s);" +
-                    "  });" +
-                    "})();";
-                view.evaluateJavascript(injectionScript, null);
-            }
+            String injectionScript =
+                "(function() {" +
+                "  try { Object.defineProperty(navigator, 'platform', { get: function() { return 'Win32'; } }); } catch(e) {}" +
+                "  if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {" +
+                "    if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === 'function') window.__JUSTUS_ENSURE_MOUNTED__();" +
+                "    return;" +
+                "  }" +
+                "  var s = document.createElement('script');" +
+                "  s.src = 'https://just-us-web.vercel.app/party-overlay.js?t=' + Date.now();" +
+                "  (document.head || document.documentElement).appendChild(s);" +
+                "})();";
+            view.evaluateJavascript(injectionScript, null);
         }
     }
 

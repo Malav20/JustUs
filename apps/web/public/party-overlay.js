@@ -784,66 +784,65 @@
   window.addEventListener("load", ensureOverlayMounted);
   setInterval(ensureOverlayMounted, 400);
 
-  // Party Pill Tap Handlers (Capture-phase to bypass YouTube SPA gesture interception)
-  let lastPillToggleTimestamp = 0;
-  let lastVideoToggleTimestamp = 0;
+  // Drawer Open / Close State Controller
+  let isDrawerOpen = false;
 
-  drawer.addEventListener("pointerdown", (e) => e.stopPropagation(), true);
-  drawer.addEventListener("pointerup", (e) => e.stopPropagation(), true);
-  drawer.addEventListener("touchstart", (e) => e.stopPropagation(), true);
-  drawer.addEventListener("touchmove", (e) => e.stopPropagation(), true);
-  drawer.addEventListener("touchend", (e) => e.stopPropagation(), true);
-  drawer.addEventListener("click", (e) => e.stopPropagation(), true);
-
-  function handlePartyPillTap(e) {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      try { e.stopImmediatePropagation(); } catch(err) {}
-    }
-    const now = Date.now();
-    if (now - lastPillToggleTimestamp < 350) return;
-    lastPillToggleTimestamp = now;
-
-    if (drawer.classList.contains("open")) {
-      drawer.classList.remove("open");
-    } else {
+  function openDrawer() {
+    try {
+      isDrawerOpen = true;
       drawer.classList.add("open");
       renderDrawerContent();
+    } catch (err) {
+      console.warn("[JustUS] openDrawer:", err);
     }
   }
-
-  partyPill.addEventListener("pointerdown", (e) => { e.stopPropagation(); }, true);
-  partyPill.addEventListener("touchstart", (e) => { e.stopPropagation(); }, true);
-  partyPill.addEventListener("pointerup", handlePartyPillTap, true);
-  partyPill.addEventListener("touchend", handlePartyPillTap, true);
-  partyPill.addEventListener("click", handlePartyPillTap, true);
-
-  function handleVideoPillTap(e) {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      try { e.stopImmediatePropagation(); } catch(err) {}
-    }
-    const now = Date.now();
-    if (now - lastVideoToggleTimestamp < 350) return;
-    lastVideoToggleTimestamp = now;
-    toggleVideoCallWindow();
-  }
-
-  videoPill.addEventListener("pointerdown", (e) => { e.stopPropagation(); }, true);
-  videoPill.addEventListener("touchstart", (e) => { e.stopPropagation(); }, true);
-  videoPill.addEventListener("pointerup", handleVideoPillTap, true);
-  videoPill.addEventListener("touchend", handleVideoPillTap, true);
-  videoPill.addEventListener("click", handleVideoPillTap, true);
 
   function closeDrawer(e) {
     if (e) {
-      e.preventDefault();
-      e.stopPropagation();
+      try { e.preventDefault(); e.stopPropagation(); } catch (err) {}
     }
+    isDrawerOpen = false;
     drawer.classList.remove("open");
   }
+
+  function toggleDrawer() {
+    if (isDrawerOpen || drawer.classList.contains("open")) {
+      closeDrawer();
+    } else {
+      openDrawer();
+    }
+  }
+
+  let lastPartyTapTime = 0;
+  function onPartyPillTap(e) {
+    if (e) {
+      try { e.preventDefault(); e.stopPropagation(); } catch (err) {}
+    }
+    const now = Date.now();
+    if (now - lastPartyTapTime < 350) return;
+    lastPartyTapTime = now;
+    toggleDrawer();
+  }
+
+  partyPill.onclick = onPartyPillTap;
+  partyPill.ontouchend = onPartyPillTap;
+
+  let lastVideoTapTime = 0;
+  function onVideoPillTap(e) {
+    if (e) {
+      try { e.preventDefault(); e.stopPropagation(); } catch (err) {}
+    }
+    const now = Date.now();
+    if (now - lastVideoTapTime < 350) return;
+    lastVideoTapTime = now;
+    toggleVideoCallWindow();
+  }
+
+  videoPill.onclick = onVideoPillTap;
+  videoPill.ontouchend = onVideoPillTap;
+
+  drawer.onclick = function (e) { e.stopPropagation(); };
+  drawer.ontouchstart = function (e) { e.stopPropagation(); };
 
   // ─────────────────────────────────────────────────────────────────
   // DRAGGABLE, RESIZABLE & TAP-TO-REVEAL VIDEO WINDOW HANDLERS
