@@ -2,60 +2,7 @@ import UIKit
 import Capacitor
 import WebKit
 
-@objc(StreamAuthPlugin)
-public class StreamAuthPlugin: CAPPlugin, CAPBridgedPlugin {
-    public let identifier = "StreamAuthPlugin"
-    public let jsName = "StreamAuth"
-    public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "loadService", returnType: CAPPluginMethodReturnPromise)
-    ]
-
-    @objc func loadService(_ call: CAPPluginCall) {
-        guard let urlString = call.getString("url"), let url = URL(string: urlString) else {
-            call.reject("Must provide URL")
-            return
-        }
-        
-        DispatchQueue.main.async {
-            if let webView = self.bridge?.webView {
-                var request = URLRequest(url: url)
-                request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
-                webView.load(request)
-                call.resolve(["success": true])
-            } else {
-                call.reject("No webview found")
-            }
-        }
-    }
-
-    @objc public override func shouldOverrideLoad(_ navigationAction: WKNavigationAction!) -> NSNumber! {
-        guard let url = navigationAction.request.url else {
-            return nil
-        }
-        
-        let scheme = url.scheme?.lowercased() ?? ""
-        // Block custom schemes like netflix:// or nflx:// or primevideo:// so they don't open the external app
-        if scheme == "netflix" || scheme == "nflx" || scheme == "primevideo" || scheme == "aiv" {
-            return NSNumber(value: true) // Abort load
-        }
-        
-        // If it is a link click to netflix/prime, load it directly in the webview to prevent universal link handoff
-        if navigationAction.navigationType == .linkActivated {
-            if let host = url.host?.lowercased(), host.contains("netflix.com") || host.contains("primevideo.com") || host.contains("amazon.com") {
-                DispatchQueue.main.async {
-                    var req = URLRequest(url: url)
-                    req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
-                    self.bridge?.webView?.load(req)
-                }
-                return NSNumber(value: true) // Abort default link click (which triggers Universal Link) and load programmatically!
-            }
-        }
-        
-        return nil
-    }
-}
-
-class MainViewController: CAPBridgeViewController {
+class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     private var floatingHubButton: UIButton?
 
     override func viewDidLoad() {
@@ -69,6 +16,7 @@ class MainViewController: CAPBridgeViewController {
             webView.configuration.mediaTypesRequiringUserActionForPlayback = []
             webView.configuration.websiteDataStore = WKWebsiteDataStore.default()
             webView.allowsBackForwardNavigationGestures = true
+            webView.configuration.userContentController.add(self, name: "streamAuth")
             webView.addObserver(self, forKeyPath: #keyPath(WKWebView.url), options: .new, context: nil)
         }
         
@@ -77,23 +25,40 @@ class MainViewController: CAPBridgeViewController {
     
     deinit {
         webView?.removeObserver(self, forKeyPath: #keyPath(WKWebView.url))
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "streamAuth")
+    }
+    
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "streamAuth",
+           let dict = message.body as? [String: Any],
+           let urlString = dict["url"] as? String,
+           let url = URL(string: urlString) {
+            DispatchQueue.main.async {
+                var request = URLRequest(url: url)
+                request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+                self.webView?.load(request)
+            }
+        }
     }
     
     private func setupFloatingHubButton() {
         let btn = UIButton(type: .system)
         btn.translatesAutoresizingMaskIntoConstraints = false
-        btn.setTitle(" ◀ JustUS Hub ", for: .normal)
-        btn.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
-        btn.setTitleColor(.white, for: .normal)
-        btn.backgroundColor = UIColor(red: 0.07, green: 0.08, blue: 0.13, alpha: 0.90)
-        btn.layer.cornerRadius = 18
+        
+        var config = UIButton.Configuration.filled()
+        config.title = " ◀ JustUS Hub "
+        config.baseBackgroundColor = UIColor(red: 0.07, green: 0.08, blue: 0.13, alpha: 0.92)
+        config.baseForegroundColor = .white
+        config.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 14, bottom: 8, trailing: 14)
+        config.cornerStyle = .capsule
+        btn.configuration = config
+        
         btn.layer.borderWidth = 1.0
         btn.layer.borderColor = UIColor.white.withAlphaComponent(0.25).cgColor
         btn.layer.shadowColor = UIColor.black.cgColor
         btn.layer.shadowOpacity = 0.45
         btn.layer.shadowOffset = CGSize(width: 0, height: 4)
         btn.layer.shadowRadius = 8
-        btn.contentEdgeInsets = UIEdgeInsets(top: 8, left: 14, bottom: 8, right: 14)
         
         btn.addTarget(self, action: #selector(didTapHubButton), for: .touchUpInside)
         
@@ -107,7 +72,7 @@ class MainViewController: CAPBridgeViewController {
         NSLayoutConstraint.activate([
             btn.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor, constant: 14),
             btn.leadingAnchor.constraint(equalTo: self.view.leadingAnchor, constant: 16),
-            btn.heightAnchor.constraint(equalToConstant: 36)
+            btn.heightAnchor.constraint(equalToConstant: 38)
         ])
     }
     

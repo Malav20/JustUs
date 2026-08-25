@@ -118,18 +118,18 @@ export function MobileWatchParty() {
   };
 
   // Helper to load service URL inside iOS WKWebView without triggering Universal Link handoff
-  const loadServiceInApp = async (targetUrl: string) => {
+  const loadServiceInApp = (targetUrl: string) => {
     if (typeof window !== "undefined") {
-      const streamAuth = (window as any).Capacitor?.Plugins?.StreamAuth;
-      if (streamAuth?.loadService) {
+      const webkit = (window as any).webkit;
+      if (webkit?.messageHandlers?.streamAuth?.postMessage) {
         try {
-          await streamAuth.loadService({ url: targetUrl });
+          webkit.messageHandlers.streamAuth.postMessage({ url: targetUrl });
           return;
         } catch (e) {
-          console.warn("StreamAuth plugin error:", e);
+          console.warn("streamAuth message handler error:", e);
         }
       }
-      // Top-level direct navigation in WKWebView
+      // Top-level direct navigation in WKWebView / browser
       window.location.href = targetUrl;
     }
   };
