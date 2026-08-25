@@ -430,43 +430,76 @@
 
   document.body.appendChild(hostDiv);
 
-  // Draggable Physics on Pill
+  // Draggable Physics & Tap Handler on Pill
   let isDragging = false;
   let dragOffset = { x: 0, y: 0 };
+  let startPos = { x: 0, y: 0 };
+  let lastToggleTimestamp = 0;
+
+  drawer.addEventListener("touchstart", (e) => e.stopPropagation());
+  drawer.addEventListener("touchmove", (e) => e.stopPropagation());
+  drawer.addEventListener("touchend", (e) => e.stopPropagation());
+  drawer.addEventListener("click", (e) => e.stopPropagation());
 
   pill.addEventListener("touchstart", (e) => {
     isDragging = false;
     const touch = e.touches[0];
     const rect = pill.getBoundingClientRect();
+    startPos.x = touch.clientX;
+    startPos.y = touch.clientY;
     dragOffset.x = touch.clientX - rect.left;
     dragOffset.y = touch.clientY - rect.top;
-  });
+  }, { passive: true });
 
   pill.addEventListener("touchmove", (e) => {
-    isDragging = true;
     const touch = e.touches[0];
-    const newX = Math.max(10, Math.min(window.innerWidth - 160, touch.clientX - dragOffset.x));
-    const newY = Math.max(10, Math.min(window.innerHeight - 50, touch.clientY - dragOffset.y));
-    pill.style.left = newX + "px";
-    pill.style.right = "auto";
-    pill.style.top = newY + "px";
-  });
+    if (Math.abs(touch.clientX - startPos.x) > 6 || Math.abs(touch.clientY - startPos.y) > 6) {
+      isDragging = true;
+    }
+    if (isDragging) {
+      const newX = Math.max(10, Math.min(window.innerWidth - 160, touch.clientX - dragOffset.x));
+      const newY = Math.max(10, Math.min(window.innerHeight - 50, touch.clientY - dragOffset.y));
+      pill.style.left = newX + "px";
+      pill.style.right = "auto";
+      pill.style.top = newY + "px";
+    }
+  }, { passive: true });
 
-  pill.addEventListener("touchend", () => {
+  pill.addEventListener("touchend", (e) => {
     if (!isDragging) {
+      e.preventDefault();
+      e.stopPropagation();
       toggleDrawer();
     }
   });
 
-  pill.addEventListener("click", () => {
+  pill.addEventListener("click", (e) => {
     if (!isDragging) {
+      e.preventDefault();
+      e.stopPropagation();
       toggleDrawer();
     }
   });
 
   function toggleDrawer() {
-    drawer.classList.toggle("open");
-    renderDrawerContent();
+    const now = Date.now();
+    if (now - lastToggleTimestamp < 350) return;
+    lastToggleTimestamp = now;
+
+    if (drawer.classList.contains("open")) {
+      drawer.classList.remove("open");
+    } else {
+      drawer.classList.add("open");
+      renderDrawerContent();
+    }
+  }
+
+  function closeDrawer(e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    drawer.classList.remove("open");
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -544,7 +577,7 @@
         </div>
       `;
 
-      shadow.getElementById("ju-close-drawer")?.addEventListener("click", toggleDrawer);
+      shadow.getElementById("ju-close-drawer")?.addEventListener("click", (e) => closeDrawer(e));
       shadow.getElementById("ju-tab-host")?.addEventListener("click", () => {
         currentTab = "host";
         renderDrawerContent();
