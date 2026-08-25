@@ -1,8 +1,10 @@
-﻿import UIKit
+import UIKit
 import Capacitor
 import WebKit
 
 class MainViewController: CAPBridgeViewController {
+    private var floatingHubButton: UIButton?
+
     override func viewDidLoad() {
         super.viewDidLoad()
         
@@ -11,6 +13,75 @@ class MainViewController: CAPBridgeViewController {
             webView.configuration.allowsInlineMediaPlayback = true
             webView.configuration.allowsAirPlayForMediaPlayback = true
             webView.configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
+            webView.configuration.mediaTypesRequiringUserActionForPlayback = []
+            webView.configuration.websiteDataStore = WKWebsiteDataStore.default()
+            webView.allowsBackForwardNavigationGestures = true
+            webView.addObserver(self, forKeyPath: #keyPath(WKWebView.url), options: .new, context: nil)
+        }
+        
+        setupFloatingHubButton()
+    }
+    
+    deinit {
+        webView?.removeObserver(self, forKeyPath: #keyPath(WKWebView.url))
+    }
+    
+    private func setupFloatingHubButton() {
+        let btn = UIButton(type: .system)
+        btn.translatesAutoresizingMaskIntoConstraints = false
+        btn.setTitle(" ◀ JustUS Hub ", for: .normal)
+        btn.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+        btn.setTitleColor(.white, for: .normal)
+        btn.backgroundColor = UIColor(red: 0.07, green: 0.08, blue: 0.13, alpha: 0.90)
+        btn.layer.cornerRadius = 18
+        btn.layer.borderWidth = 1.0
+        btn.layer.borderColor = UIColor.white.withAlphaComponent(0.25).cgColor
+        btn.layer.shadowColor = UIColor.black.cgColor
+        btn.layer.shadowOpacity = 0.45
+        btn.layer.shadowOffset = CGSize(width: 0, height: 4)
+        btn.layer.shadowRadius = 8
+        btn.contentEdgeInsets = UIEdgeInsets(top: 8, left: 14, bottom: 8, right: 14)
+        
+        btn.addTarget(self, action: #selector(didTapHubButton), for: .touchUpInside)
+        
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        btn.addGestureRecognizer(pan)
+        
+        self.view.addSubview(btn)
+        self.floatingHubButton = btn
+        btn.isHidden = true
+        
+        NSLayoutConstraint.activate([
+            btn.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor, constant: 14),
+            btn.leadingAnchor.constraint(equalTo: self.view.leadingAnchor, constant: 16),
+            btn.heightAnchor.constraint(equalToConstant: 36)
+        ])
+    }
+    
+    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+        guard let btn = floatingHubButton else { return }
+        let translation = gesture.translation(in: self.view)
+        btn.center = CGPoint(x: btn.center.x + translation.x, y: btn.center.y + translation.y)
+        gesture.setTranslation(.zero, in: self.view)
+    }
+    
+    @objc private func didTapHubButton() {
+        if let targetUrl = URL(string: "https://just-us-web.vercel.app/mobile") {
+            webView?.load(URLRequest(url: targetUrl))
+        }
+    }
+    
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
+        if keyPath == #keyPath(WKWebView.url), let webView = self.webView, let currentUrl = webView.url {
+            let urlString = currentUrl.absoluteString
+            let isExternal = urlString.contains("netflix.com") || urlString.contains("primevideo.com") || urlString.contains("amazon.com") || urlString.contains("youtube.com")
+            
+            DispatchQueue.main.async {
+                self.floatingHubButton?.isHidden = !isExternal
+                if isExternal, let btn = self.floatingHubButton {
+                    self.view.bringSubviewToFront(btn)
+                }
+            }
         }
     }
 }
