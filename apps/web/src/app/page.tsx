@@ -46,17 +46,10 @@ function LandingPageContent() {
           <div className="flex items-center space-x-3">
             <Link
               href="/downloads"
-              className="text-xs font-semibold px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-all flex items-center gap-1"
+              className="text-xs font-semibold px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 border border-white/10 transition-all flex items-center gap-1.5"
             >
               <span>✨</span>
               <span>Our Apps</span>
-            </Link>
-            <Link
-              href="/mobile"
-              className="text-xs font-semibold px-4 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 text-white shadow-md shadow-rose-600/25 transition-all flex items-center gap-1.5"
-            >
-              <span>🍿</span>
-              <span>Start Movie Date</span>
             </Link>
           </div>
         </div>

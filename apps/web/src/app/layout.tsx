@@ -2,8 +2,22 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "JustUs - Synchronized Watch Party with 1-on-1 Video Calling",
-  description: "Watch Netflix & Amazon Prime Video together with ultra low-latency WebRTC video and real-time playback sync.",
+  title: "JustUS ❤️ • Strawberry & Lion's Private Cinema",
+  description: "Private watch party & 1-on-1 face-to-face video calling crafted with love for Strawberry (Rutwa) & Lion (Malav). Forever our favorite movie dates.",
+  applicationName: "JustUS • Malav & Rutwa",
+  authors: [{ name: "Malav & Rutwa" }],
+  keywords: ["JustUS", "Strawberry and Lion", "Rutwa and Malav", "Watch Party", "Private Cinema", "Movie Nights"],
+  openGraph: {
+    title: "JustUS ❤️ • Strawberry & Lion's Private Cinema",
+    description: "Where Princess & her Mango watch movies together with perfect sync and live face-to-face video calling.",
+    siteName: "JustUS • Malav & Rutwa",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "JustUS ❤️ • Strawberry & Lion's Private Cinema",
+    description: "Where Princess & her Mango watch movies together with perfect sync and live face-to-face video calling.",
+  },
 };
 
 export default function RootLayout({
@@ -13,7 +27,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen bg-[#090A0F] text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
+      <body className="min-h-screen bg-[#090A12] text-slate-100 antialiased selection:bg-rose-500 selection:text-white">
         {children}
       </body>
     </html>
