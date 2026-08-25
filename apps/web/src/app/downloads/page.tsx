@@ -48,7 +48,7 @@ export default function DownloadsPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-3xl mx-auto px-6 pt-12 pb-24 relative z-10 space-y-10">
+      <main className="max-w-4xl mx-auto px-6 pt-12 pb-24 relative z-10 space-y-10">
         {/* Title */}
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs font-bold tracking-wide">
@@ -59,7 +59,7 @@ export default function DownloadsPage() {
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
             Our App Downloads
           </h1>
-          <p className="text-sm text-slate-400 max-w-md mx-auto">
+          <p className="text-sm text-slate-400 max-w-2xl mx-auto sm:whitespace-nowrap">
             Choose your device below so we can jump into our next movie date together in seconds.
           </p>
         </div>
@@ -75,9 +75,9 @@ export default function DownloadsPage() {
                   🍓
                 </div>
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-white">Rutwa's Laptop (Chrome Extension)</h2>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/30">
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    <h2 className="text-base font-bold text-white whitespace-nowrap">Rutwa's Laptop (Chrome Extension)</h2>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/30 whitespace-nowrap shrink-0">
                       👑 Princess
                     </span>
                   </div>
