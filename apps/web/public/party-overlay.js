@@ -238,12 +238,19 @@
   style.textContent = `
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     
-    .floating-pill {
+    .badges-container {
       position: fixed;
       top: 14px;
       right: 16px;
+      display: flex;
+      gap: 8px;
+      z-index: 2147483647;
+      pointer-events: none;
+    }
+    
+    .floating-pill {
       height: 38px;
-      padding: 0 16px;
+      padding: 0 14px;
       border-radius: 19px;
       background: rgba(18, 20, 31, 0.92);
       backdrop-filter: blur(16px);
@@ -254,16 +261,23 @@
       font-weight: 700;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 7px;
       cursor: pointer;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-      z-index: 2147483647;
       pointer-events: auto;
       user-select: none;
       -webkit-user-select: none;
       transition: transform 0.15s ease, background 0.2s ease;
     }
     .floating-pill:active { transform: scale(0.96); }
+    .floating-pill.video-pill {
+      background: rgba(30, 27, 75, 0.92);
+      border-color: rgba(99, 102, 241, 0.35);
+    }
+    .floating-pill.video-pill.active {
+      background: rgba(6, 78, 59, 0.92);
+      border-color: rgba(16, 185, 129, 0.4);
+    }
     .status-dot {
       width: 7px;
       height: 7px;
@@ -272,6 +286,203 @@
       box-shadow: 0 0 8px #10B981;
     }
     .status-dot.idle { background: #6366F1; box-shadow: 0 0 8px #6366F1; }
+    .status-dot.active { background: #10B981; box-shadow: 0 0 8px #10B981; animation: pulseRing 1.8s infinite; }
+    .status-dot.off { background: #94A3B8; box-shadow: none; }
+
+    @keyframes pulseRing {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Floating Draggable & Resizable Video Call Window */
+    .video-call-window {
+      position: fixed;
+      top: 65px;
+      right: 20px;
+      width: 280px;
+      height: 215px;
+      min-width: 180px;
+      min-height: 140px;
+      max-width: 92vw;
+      max-height: 85vh;
+      background: rgba(14, 16, 26, 0.96);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 18px;
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.75);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 2147483645;
+      pointer-events: auto;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+      transition: opacity 0.2s ease;
+    }
+    .video-call-window.hidden {
+      display: none !important;
+    }
+
+    .video-header {
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: move;
+      touch-action: none;
+    }
+    .video-header-title {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .video-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .video-icon-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #94A3B8;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .video-icon-btn.close:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #EF4444;
+    }
+
+    .video-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: #000;
+      overflow: hidden;
+    }
+    .remote-feed-container {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      background: #090A10;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .remote-video-feed {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .local-video-pip {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      width: 70px;
+      height: 52px;
+      border-radius: 8px;
+      border: 1.5px solid rgba(255, 255, 255, 0.4);
+      object-fit: cover;
+      transform: scaleX(-1);
+      background: #181A26;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+      z-index: 2;
+    }
+    .local-video-pip.hidden {
+      display: none !important;
+    }
+
+    .video-waiting-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #0d0f18;
+      color: #94A3B8;
+      font-size: 11px;
+      font-weight: 600;
+      z-index: 1;
+      padding: 10px;
+      text-align: center;
+    }
+    .video-waiting-overlay.hidden {
+      display: none !important;
+    }
+    .waiting-pulse {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #6366F1;
+      animation: pulseRing 1.8s infinite;
+    }
+
+    .video-control-bar {
+      padding: 6px 10px;
+      background: rgba(18, 20, 31, 0.95);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      z-index: 3;
+    }
+    .call-ctrl-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .call-ctrl-btn:active { transform: scale(0.92); }
+    .call-ctrl-btn.off {
+      background: rgba(239, 68, 68, 0.25);
+      color: #EF4444;
+      border-color: #EF4444;
+    }
+    .call-ctrl-btn.end-call {
+      background: #EF4444;
+      border-color: #DC2626;
+      color: #fff;
+    }
+
+    .video-resize-handle {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 22px;
+      height: 22px;
+      cursor: nwse-resize;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 3px;
+      touch-action: none;
+      z-index: 10;
+    }
 
     .drawer-overlay {
       position: fixed;
@@ -486,14 +697,72 @@
 
   shadow.appendChild(style);
 
-  // Floating Button Element
-  const pill = document.createElement("div");
-  pill.className = "floating-pill";
-  pill.innerHTML = `
-    <span class="status-dot idle" id="ju-status-dot"></span>
-    <span id="ju-pill-text">🎉 Watch Party</span>
+  // Floating Badges Container
+  const badgesContainer = document.createElement("div");
+  badgesContainer.className = "badges-container";
+  badgesContainer.innerHTML = `
+    <div class="floating-pill video-pill" id="ju-video-pill">
+      <span class="status-dot idle" id="ju-video-dot"></span>
+      <span id="ju-video-pill-text">📹 Video Call</span>
+    </div>
+    <div class="floating-pill" id="ju-party-pill">
+      <span class="status-dot idle" id="ju-status-dot"></span>
+      <span id="ju-pill-text">🎉 Watch Party</span>
+    </div>
   `;
-  shadow.appendChild(pill);
+  shadow.appendChild(badgesContainer);
+
+  const partyPill = shadow.getElementById("ju-party-pill");
+  const videoPill = shadow.getElementById("ju-video-pill");
+
+  // Floating Draggable & Resizable Video Window
+  const videoWindow = document.createElement("div");
+  videoWindow.className = "video-call-window hidden";
+  videoWindow.id = "ju-video-window";
+  videoWindow.innerHTML = `
+    <div class="video-header" id="ju-video-drag-handle">
+      <div class="video-header-title">
+        <span class="status-dot idle" id="ju-call-status-dot"></span>
+        <span id="ju-call-title">1-on-1 Video Call</span>
+      </div>
+      <div class="video-header-actions">
+        <button class="video-icon-btn" id="ju-btn-min-call" title="Minimize">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="video-icon-btn close" id="ju-btn-close-call" title="Close">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="video-body">
+      <div class="remote-feed-container">
+        <div class="video-waiting-overlay" id="ju-video-waiting">
+          <div class="waiting-pulse"></div>
+          <span id="ju-waiting-text">Waiting for friend to join call...</span>
+        </div>
+        <video class="remote-video-feed" id="ju-remote-video" autoplay playsinline></video>
+        <video class="local-video-pip hidden" id="ju-local-video" autoplay playsinline muted></video>
+      </div>
+      <div class="video-control-bar">
+        <button class="call-ctrl-btn" id="ju-btn-mic" title="Mute/Unmute Mic">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+        </button>
+        <button class="call-ctrl-btn" id="ju-btn-cam" title="Camera On/Off">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+        </button>
+        <button class="call-ctrl-btn" id="ju-btn-flip" title="Flip Camera">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        </button>
+        <button class="call-ctrl-btn end-call" id="ju-btn-hangup" title="End Call">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="video-resize-handle" id="ju-video-resize-handle" title="Drag to resize">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="3"><line x1="22" y1="2" x2="2" y2="22"/><line x1="22" y1="12" x2="12" y2="22"/></svg>
+    </div>
+  `;
+  shadow.appendChild(videoWindow);
 
   // Drawer Overlay Element
   const drawer = document.createElement("div");
@@ -502,10 +771,9 @@
 
   document.body.appendChild(hostDiv);
 
-  // Draggable Physics & Tap Handler on Pill
-  let isDragging = false;
-  let dragOffset = { x: 0, y: 0 };
-  let startPos = { x: 0, y: 0 };
+  // Party Pill Tap & Drag Handlers
+  let isDraggingPartyPill = false;
+  let partyDragStart = { x: 0, y: 0 };
   let lastToggleTimestamp = 0;
 
   drawer.addEventListener("touchstart", (e) => e.stopPropagation());
@@ -513,44 +781,48 @@
   drawer.addEventListener("touchend", (e) => e.stopPropagation());
   drawer.addEventListener("click", (e) => e.stopPropagation());
 
-  pill.addEventListener("touchstart", (e) => {
-    isDragging = false;
+  videoWindow.addEventListener("click", (e) => e.stopPropagation());
+
+  partyPill.addEventListener("touchstart", (e) => {
+    isDraggingPartyPill = false;
     const touch = e.touches[0];
-    const rect = pill.getBoundingClientRect();
-    startPos.x = touch.clientX;
-    startPos.y = touch.clientY;
-    dragOffset.x = touch.clientX - rect.left;
-    dragOffset.y = touch.clientY - rect.top;
+    partyDragStart.x = touch.clientX;
+    partyDragStart.y = touch.clientY;
   }, { passive: true });
 
-  pill.addEventListener("touchmove", (e) => {
+  partyPill.addEventListener("touchmove", (e) => {
     const touch = e.touches[0];
-    if (Math.abs(touch.clientX - startPos.x) > 6 || Math.abs(touch.clientY - startPos.y) > 6) {
-      isDragging = true;
-    }
-    if (isDragging) {
-      const newX = Math.max(10, Math.min(window.innerWidth - 160, touch.clientX - dragOffset.x));
-      const newY = Math.max(10, Math.min(window.innerHeight - 50, touch.clientY - dragOffset.y));
-      pill.style.left = newX + "px";
-      pill.style.right = "auto";
-      pill.style.top = newY + "px";
+    if (Math.abs(touch.clientX - partyDragStart.x) > 8 || Math.abs(touch.clientY - partyDragStart.y) > 8) {
+      isDraggingPartyPill = true;
     }
   }, { passive: true });
 
-  pill.addEventListener("touchend", (e) => {
-    if (!isDragging) {
+  partyPill.addEventListener("touchend", (e) => {
+    if (!isDraggingPartyPill) {
       e.preventDefault();
       e.stopPropagation();
       toggleDrawer();
     }
   });
 
-  pill.addEventListener("click", (e) => {
-    if (!isDragging) {
+  partyPill.addEventListener("click", (e) => {
+    if (!isDraggingPartyPill) {
       e.preventDefault();
       e.stopPropagation();
       toggleDrawer();
     }
+  });
+
+  videoPill.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleVideoCallWindow();
+  });
+
+  videoPill.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleVideoCallWindow();
   });
 
   function toggleDrawer() {
@@ -572,6 +844,411 @@
       e.stopPropagation();
     }
     drawer.classList.remove("open");
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // DRAGGABLE & RESIZABLE VIDEO WINDOW HANDLERS
+  // ─────────────────────────────────────────────────────────────────
+  const dragHandle = shadow.getElementById("ju-video-drag-handle");
+  const resizeHandle = shadow.getElementById("ju-video-resize-handle");
+  
+  let isDraggingWindow = false;
+  let dragWindowStartX = 0, dragWindowStartY = 0;
+  let winStartLeft = 0, winStartTop = 0;
+
+  function onWindowDragStart(e) {
+    if (e.target.closest("button")) return;
+    isDraggingWindow = true;
+    const touch = e.touches ? e.touches[0] : e;
+    dragWindowStartX = touch.clientX;
+    dragWindowStartY = touch.clientY;
+    const rect = videoWindow.getBoundingClientRect();
+    winStartLeft = rect.left;
+    winStartTop = rect.top;
+  }
+
+  function onWindowDragMove(e) {
+    if (!isDraggingWindow) return;
+    const touch = e.touches ? e.touches[0] : e;
+    const deltaX = touch.clientX - dragWindowStartX;
+    const deltaY = touch.clientY - dragWindowStartY;
+
+    let newLeft = winStartLeft + deltaX;
+    let newTop = winStartTop + deltaY;
+
+    const winWidth = videoWindow.offsetWidth;
+    const winHeight = videoWindow.offsetHeight;
+    newLeft = Math.max(8, Math.min(window.innerWidth - winWidth - 8, newLeft));
+    newTop = Math.max(8, Math.min(window.innerHeight - winHeight - 8, newTop));
+
+    videoWindow.style.left = `${newLeft}px`;
+    videoWindow.style.top = `${newTop}px`;
+    videoWindow.style.right = "auto";
+  }
+
+  function onWindowDragEnd() {
+    isDraggingWindow = false;
+  }
+
+  dragHandle.addEventListener("touchstart", onWindowDragStart, { passive: true });
+  window.addEventListener("touchmove", onWindowDragMove, { passive: true });
+  window.addEventListener("touchend", onWindowDragEnd, { passive: true });
+  dragHandle.addEventListener("mousedown", onWindowDragStart);
+  window.addEventListener("mousemove", onWindowDragMove);
+  window.addEventListener("mouseup", onWindowDragEnd);
+
+  // Resize Handlers
+  let isResizingWindow = false;
+  let resizeStartX = 0, resizeStartY = 0;
+  let startWinWidth = 0, startWinHeight = 0;
+
+  function onWindowResizeStart(e) {
+    e.stopPropagation();
+    isResizingWindow = true;
+    const touch = e.touches ? e.touches[0] : e;
+    resizeStartX = touch.clientX;
+    resizeStartY = touch.clientY;
+    startWinWidth = videoWindow.offsetWidth;
+    startWinHeight = videoWindow.offsetHeight;
+  }
+
+  function onWindowResizeMove(e) {
+    if (!isResizingWindow) return;
+    const touch = e.touches ? e.touches[0] : e;
+    const deltaX = touch.clientX - resizeStartX;
+    const deltaY = touch.clientY - resizeStartY;
+
+    const rect = videoWindow.getBoundingClientRect();
+    const maxWidth = window.innerWidth - rect.left - 10;
+    const maxHeight = window.innerHeight - rect.top - 10;
+
+    const newWidth = Math.max(180, Math.min(maxWidth, startWinWidth + deltaX));
+    const newHeight = Math.max(140, Math.min(maxHeight, startWinHeight + deltaY));
+
+    videoWindow.style.width = `${newWidth}px`;
+    videoWindow.style.height = `${newHeight}px`;
+  }
+
+  function onWindowResizeEnd() {
+    isResizingWindow = false;
+  }
+
+  resizeHandle.addEventListener("touchstart", onWindowResizeStart, { passive: true });
+  window.addEventListener("touchmove", onWindowResizeMove, { passive: true });
+  window.addEventListener("touchend", onWindowResizeEnd, { passive: true });
+  resizeHandle.addEventListener("mousedown", onWindowResizeStart);
+
+  // Video Window Controls
+  shadow.getElementById("ju-btn-min-call")?.addEventListener("click", () => {
+    videoWindow.classList.add("hidden");
+  });
+  shadow.getElementById("ju-btn-close-call")?.addEventListener("click", () => {
+    leaveLiveKitCall();
+    videoWindow.classList.add("hidden");
+  });
+  shadow.getElementById("ju-btn-hangup")?.addEventListener("click", () => {
+    leaveLiveKitCall();
+    videoWindow.classList.add("hidden");
+  });
+  shadow.getElementById("ju-btn-mic")?.addEventListener("click", () => toggleMic());
+  shadow.getElementById("ju-btn-cam")?.addEventListener("click", () => toggleCam());
+  shadow.getElementById("ju-btn-flip")?.addEventListener("click", () => flipCamera());
+
+  // ─────────────────────────────────────────────────────────────────
+  // LIVEKIT WEBRTC VIDEO CALLING LOGIC
+  // ─────────────────────────────────────────────────────────────────
+  let livekitRoom = null;
+  let localVideoTrack = null;
+  let localAudioTrack = null;
+  let remoteAudioEl = null;
+  let isVideoCallActive = false;
+  let isMicEnabled = true;
+  let isCamEnabled = true;
+  let currentFacingMode = "user";
+  let isLiveKitConnecting = false;
+
+  function loadLiveKitSDK(callback) {
+    if (window.LivekitClient) {
+      callback();
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/livekit-client@2.6.0/dist/livekit-client.umd.min.js";
+    script.onload = () => {
+      if (window.LivekitClient) callback();
+    };
+    script.onerror = () => {
+      console.warn("[JustUS] Could not load LiveKit SDK from CDN");
+      addEventLog("⚠️ Could not load video call client", "System");
+    };
+    (document.head || document.documentElement).appendChild(script);
+  }
+
+  function toggleVideoCallWindow() {
+    if (!activeRoomId) {
+      addEventLog("⚠️ Please create or join a watch party first!", "System");
+      toggleDrawer();
+      return;
+    }
+
+    if (videoWindow.classList.contains("hidden")) {
+      videoWindow.classList.remove("hidden");
+      if (!livekitRoom && !isLiveKitConnecting) {
+        connectLiveKitCall();
+      }
+    } else {
+      videoWindow.classList.add("hidden");
+    }
+  }
+
+  async function connectLiveKitCall() {
+    if (!activeRoomId || isLiveKitConnecting) return;
+    isLiveKitConnecting = true;
+    const waitingText = shadow.getElementById("ju-waiting-text");
+    if (waitingText) waitingText.textContent = "Connecting to call...";
+
+    loadLiveKitSDK(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/livekit/token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            roomName: activeRoomId,
+            identity: currentUserName + "_" + Math.random().toString(36).substring(2, 6),
+            name: currentUserName,
+            isHost: isHost,
+          }),
+        });
+        const { token, wsUrl } = await res.json();
+        if (!token) throw new Error("No token received");
+
+        const room = new window.LivekitClient.Room({
+          adaptiveStream: true,
+          dynacast: true,
+          videoCaptureDefaults: {
+            resolution: window.LivekitClient.VideoPresets.h360.resolution,
+          },
+        });
+        livekitRoom = room;
+
+        room.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, pub, participant) => {
+          const waitingOverlay = shadow.getElementById("ju-video-waiting");
+          if (track.kind === window.LivekitClient.Track.Kind.Video) {
+            const remoteVideo = shadow.getElementById("ju-remote-video");
+            if (remoteVideo) {
+              track.attach(remoteVideo);
+              if (waitingOverlay) waitingOverlay.classList.add("hidden");
+            }
+          }
+          if (track.kind === window.LivekitClient.Track.Kind.Audio) {
+            const audioEl = track.attach();
+            remoteAudioEl = audioEl;
+            audioEl.volume = 0.9;
+            shadow.appendChild(audioEl);
+          }
+        });
+
+        room.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
+          track.detach();
+          if (track.kind === window.LivekitClient.Track.Kind.Video) {
+            const waitingOverlay = shadow.getElementById("ju-video-waiting");
+            if (waitingOverlay) waitingOverlay.classList.remove("hidden");
+          }
+        });
+
+        room.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, () => {
+          const waitingOverlay = shadow.getElementById("ju-video-waiting");
+          if (waitingOverlay) {
+            waitingOverlay.classList.remove("hidden");
+            const wt = shadow.getElementById("ju-waiting-text");
+            if (wt) wt.textContent = "Friend left video call";
+          }
+        });
+
+        room.on(window.LivekitClient.RoomEvent.Disconnected, () => {
+          leaveLiveKitCall();
+        });
+
+        await room.connect(wsUrl || "wss://justus-0q7zbww8.livekit.cloud", token);
+        isVideoCallActive = true;
+        updateVideoPillState();
+
+        // 1. Microphone track strictly with Acoustic Echo Cancellation & Noise Suppression
+        // Isolated to hardware mic so speaker video playback audio is NOT transmitted into the call
+        try {
+          localAudioTrack = await window.LivekitClient.createLocalAudioTrack({
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          });
+          await room.localParticipant.publishTrack(localAudioTrack);
+        } catch (e) {
+          console.warn("[JustUS] Microphone setup notice:", e);
+        }
+
+        // 2. Front/User Camera track
+        try {
+          localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
+            facingMode: currentFacingMode,
+            resolution: { width: 480, height: 360, frameRate: 24 },
+          });
+          const localVideoEl = shadow.getElementById("ju-local-video");
+          if (localVideoEl) {
+            localVideoTrack.attach(localVideoEl);
+            localVideoEl.classList.remove("hidden");
+          }
+          await room.localParticipant.publishTrack(localVideoTrack);
+        } catch (e) {
+          console.warn("[JustUS] Camera setup notice:", e);
+        }
+
+        if (waitingText) waitingText.textContent = "Waiting for friend to join call...";
+      } catch (err) {
+        console.error("[JustUS] LiveKit call error:", err);
+        if (waitingText) waitingText.textContent = "Connection error";
+      } finally {
+        isLiveKitConnecting = false;
+      }
+    });
+  }
+
+  function leaveLiveKitCall() {
+    isVideoCallActive = false;
+    if (localAudioTrack) {
+      try {
+        localAudioTrack.stop();
+        if (localAudioTrack.mediaStreamTrack) localAudioTrack.mediaStreamTrack.stop();
+      } catch (e) {}
+      localAudioTrack = null;
+    }
+    if (localVideoTrack) {
+      try {
+        localVideoTrack.stop();
+        if (localVideoTrack.mediaStreamTrack) localVideoTrack.mediaStreamTrack.stop();
+      } catch (e) {}
+      localVideoTrack = null;
+    }
+    if (remoteAudioEl) {
+      try { remoteAudioEl.remove(); } catch (e) {}
+      remoteAudioEl = null;
+    }
+    if (livekitRoom) {
+      try { livekitRoom.disconnect(); } catch (e) {}
+      livekitRoom = null;
+    }
+    const localVideoEl = shadow.getElementById("ju-local-video");
+    if (localVideoEl) localVideoEl.classList.add("hidden");
+    const waitingOverlay = shadow.getElementById("ju-video-waiting");
+    if (waitingOverlay) waitingOverlay.classList.remove("hidden");
+    updateVideoPillState();
+  }
+
+  async function toggleMic() {
+    isMicEnabled = !isMicEnabled;
+    const btn = shadow.getElementById("ju-btn-mic");
+    if (btn) btn.classList.toggle("off", !isMicEnabled);
+
+    if (!isMicEnabled) {
+      if (localAudioTrack) {
+        const tr = localAudioTrack;
+        localAudioTrack = null;
+        try {
+          if (livekitRoom) await livekitRoom.localParticipant.unpublishTrack(tr, true);
+          tr.stop();
+          if (tr.mediaStreamTrack) tr.mediaStreamTrack.stop();
+        } catch (e) {}
+      }
+    } else {
+      if (livekitRoom) {
+        try {
+          localAudioTrack = await window.LivekitClient.createLocalAudioTrack({
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          });
+          await livekitRoom.localParticipant.publishTrack(localAudioTrack);
+        } catch (e) {}
+      }
+    }
+  }
+
+  async function toggleCam() {
+    isCamEnabled = !isCamEnabled;
+    const btn = shadow.getElementById("ju-btn-cam");
+    const localVideoEl = shadow.getElementById("ju-local-video");
+    if (btn) btn.classList.toggle("off", !isCamEnabled);
+
+    if (!isCamEnabled) {
+      if (localVideoEl) localVideoEl.classList.add("hidden");
+      if (localVideoTrack) {
+        const tr = localVideoTrack;
+        localVideoTrack = null;
+        try {
+          if (livekitRoom) await livekitRoom.localParticipant.unpublishTrack(tr, true);
+          tr.stop();
+          if (tr.mediaStreamTrack) tr.mediaStreamTrack.stop();
+        } catch (e) {}
+      }
+    } else {
+      if (livekitRoom) {
+        try {
+          localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
+            facingMode: currentFacingMode,
+            resolution: { width: 480, height: 360, frameRate: 24 },
+          });
+          if (localVideoEl) {
+            localVideoTrack.attach(localVideoEl);
+            localVideoEl.classList.remove("hidden");
+          }
+          await livekitRoom.localParticipant.publishTrack(localVideoTrack);
+        } catch (e) {}
+      }
+    }
+  }
+
+  async function flipCamera() {
+    currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+    const localVideoEl = shadow.getElementById("ju-local-video");
+    if (localVideoTrack) {
+      const oldTrack = localVideoTrack;
+      try {
+        if (livekitRoom) await livekitRoom.localParticipant.unpublishTrack(oldTrack, true);
+        oldTrack.stop();
+        if (oldTrack.mediaStreamTrack) oldTrack.mediaStreamTrack.stop();
+      } catch (e) {}
+    }
+    if (livekitRoom && isCamEnabled) {
+      try {
+        localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
+          facingMode: currentFacingMode,
+          resolution: { width: 480, height: 360, frameRate: 24 },
+        });
+        if (localVideoEl) {
+          localVideoTrack.attach(localVideoEl);
+          localVideoEl.classList.remove("hidden");
+        }
+        await livekitRoom.localParticipant.publishTrack(localVideoTrack);
+      } catch (e) {}
+    }
+  }
+
+  function updateVideoPillState() {
+    const videoDot = shadow.getElementById("ju-video-dot");
+    const videoPillText = shadow.getElementById("ju-video-pill-text");
+    const callDot = shadow.getElementById("ju-call-status-dot");
+    if (!videoDot || !videoPillText) return;
+
+    if (isVideoCallActive) {
+      videoDot.className = "status-dot active";
+      videoPill.classList.add("active");
+      videoPillText.textContent = "📹 In Call";
+      if (callDot) callDot.className = "status-dot active";
+    } else {
+      videoDot.className = "status-dot idle";
+      videoPill.classList.remove("active");
+      videoPillText.textContent = "📹 Video Call";
+      if (callDot) callDot.className = "status-dot idle";
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -1248,6 +1925,8 @@
 
   function leaveParty() {
     setWakeLock(false);
+    leaveLiveKitCall();
+    if (videoWindow) videoWindow.classList.add("hidden");
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (activeChannel && supabaseClient) {
       supabaseClient.removeChannel(activeChannel);
