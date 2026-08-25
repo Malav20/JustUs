@@ -141,10 +141,14 @@
       } catch (e) {}
     }
     const v = findVideoElement();
-    if (v && v.paused) {
-      v.play().catch(() => {});
-      const playBtn = document.querySelector("button[data-uia='control-play-pause']");
-      if (playBtn) playBtn.click();
+    if (v) {
+      v.volume = 1.0;
+      v.muted = false;
+      if (v.paused) {
+        v.play().catch(() => {});
+        const playBtn = document.querySelector("button[data-uia='control-play-pause']");
+        if (playBtn) playBtn.click();
+      }
     }
   }
 
@@ -830,14 +834,20 @@
   const resizeHandle = shadow.getElementById("ju-video-resize-handle");
   const videoControls = shadow.getElementById("ju-video-controls");
   
+  // Pointer-Based Draggable, Resizable & Tap-to-Reveal Video Window Handlers
   let isDraggingWindow = false;
   let hasMovedWindow = false;
   let dragWindowStartX = 0, dragWindowStartY = 0;
   let winStartLeft = 0, winStartTop = 0;
   let controlsHideTimeout = null;
+  let lastControlsToggleTime = 0;
 
   function toggleControlsOverlay() {
     if (!videoControls) return;
+    const now = Date.now();
+    if (now - lastControlsToggleTime < 300) return;
+    lastControlsToggleTime = now;
+
     if (videoControls.classList.contains("hidden")) {
       videoControls.classList.remove("hidden");
       resetControlsHideTimer();
@@ -851,59 +861,62 @@
     if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
     controlsHideTimeout = setTimeout(() => {
       if (videoControls) videoControls.classList.add("hidden");
-    }, 3500);
+    }, 4500);
   }
 
-  function onWindowDragStart(e) {
-    if (e.target.closest("button") || e.target.closest(".video-resize-handle")) return;
+  function onWindowPointerDown(e) {
+    if (e.target.closest("button") || e.target.closest(".video-resize-handle") || e.target.closest(".video-controls-overlay")) return;
     isDraggingWindow = true;
     hasMovedWindow = false;
-    const touch = e.touches ? e.touches[0] : e;
-    dragWindowStartX = touch.clientX;
-    dragWindowStartY = touch.clientY;
+    dragWindowStartX = e.clientX;
+    dragWindowStartY = e.clientY;
     const rect = videoWindow.getBoundingClientRect();
     winStartLeft = rect.left;
     winStartTop = rect.top;
   }
 
-  function onWindowDragMove(e) {
+  function onWindowPointerMove(e) {
     if (!isDraggingWindow) return;
-    const touch = e.touches ? e.touches[0] : e;
-    const deltaX = touch.clientX - dragWindowStartX;
-    const deltaY = touch.clientY - dragWindowStartY;
+    const deltaX = e.clientX - dragWindowStartX;
+    const deltaY = e.clientY - dragWindowStartY;
 
-    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+    if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
       hasMovedWindow = true;
     }
 
-    let newLeft = winStartLeft + deltaX;
-    let newTop = winStartTop + deltaY;
+    if (hasMovedWindow) {
+      let newLeft = winStartLeft + deltaX;
+      let newTop = winStartTop + deltaY;
 
-    const winWidth = videoWindow.offsetWidth;
-    const winHeight = videoWindow.offsetHeight;
-    newLeft = Math.max(8, Math.min(window.innerWidth - winWidth - 8, newLeft));
-    newTop = Math.max(8, Math.min(window.innerHeight - winHeight - 8, newTop));
+      const winWidth = videoWindow.offsetWidth;
+      const winHeight = videoWindow.offsetHeight;
+      newLeft = Math.max(8, Math.min(window.innerWidth - winWidth - 8, newLeft));
+      newTop = Math.max(8, Math.min(window.innerHeight - winHeight - 8, newTop));
 
-    videoWindow.style.left = `${newLeft}px`;
-    videoWindow.style.top = `${newTop}px`;
-    videoWindow.style.right = "auto";
+      videoWindow.style.left = `${newLeft}px`;
+      videoWindow.style.top = `${newTop}px`;
+      videoWindow.style.right = "auto";
+    }
   }
 
-  function onWindowDragEnd(e) {
+  function onWindowPointerUp(e) {
     if (!isDraggingWindow) return;
     isDraggingWindow = false;
     if (!hasMovedWindow) {
-      // If user tapped without dragging, toggle the control buttons overlay
       toggleControlsOverlay();
     }
   }
 
-  videoCanvas.addEventListener("touchstart", onWindowDragStart, { passive: true });
-  window.addEventListener("touchmove", onWindowDragMove, { passive: true });
-  window.addEventListener("touchend", onWindowDragEnd, { passive: true });
-  videoCanvas.addEventListener("mousedown", onWindowDragStart);
-  window.addEventListener("mousemove", onWindowDragMove);
-  window.addEventListener("mouseup", onWindowDragEnd);
+  videoCanvas.addEventListener("pointerdown", onWindowPointerDown);
+  window.addEventListener("pointermove", onWindowPointerMove);
+  window.addEventListener("pointerup", onWindowPointerUp);
+
+  // Prevent taps inside controls overlay from closing it
+  videoControls.addEventListener("pointerdown", (e) => e.stopPropagation());
+  videoControls.addEventListener("click", (e) => {
+    e.stopPropagation();
+    resetControlsHideTimer();
+  });
 
   // Resize Handlers
   let isResizingWindow = false;
@@ -941,12 +954,11 @@
     isResizingWindow = false;
   }
 
-  resizeHandle.addEventListener("touchstart", onWindowResizeStart, { passive: true });
-  window.addEventListener("touchmove", onWindowResizeMove, { passive: true });
-  window.addEventListener("touchend", onWindowResizeEnd, { passive: true });
-  resizeHandle.addEventListener("mousedown", onWindowResizeStart);
+  resizeHandle.addEventListener("pointerdown", onWindowResizeStart);
+  window.addEventListener("pointermove", onWindowResizeMove);
+  window.addEventListener("pointerup", onWindowResizeEnd);
 
-  // Video Window Controls
+  // Video Window Control Buttons
   shadow.getElementById("ju-btn-close-call")?.addEventListener("click", (e) => {
     e.stopPropagation();
     videoWindow.classList.add("hidden");

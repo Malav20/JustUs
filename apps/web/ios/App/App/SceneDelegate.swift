@@ -1,6 +1,7 @@
 import UIKit
 import Capacitor
 import WebKit
+import AVFoundation
 
 class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     private var floatingHubButton: UIButton?
@@ -9,6 +10,9 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        configureAudioSession()
+        NotificationCenter.default.addObserver(self, selector: #selector(handleAudioRouteChange), name: AVAudioSession.routeChangeNotification, object: nil)
         
         if let webView = self.webView {
             webView.customUserAgent = safariDesktopUserAgent
@@ -35,8 +39,27 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
         
         setupFloatingHubButton()
     }
+
+    private func configureAudioSession() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(
+                .playAndRecord,
+                mode: .videoChat,
+                options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .mixWithOthers]
+            )
+            try session.setActive(true, options: [])
+        } catch {
+            print("[JustUS] AVAudioSession setup: \(error.localizedDescription)")
+        }
+    }
+
+    @objc private func handleAudioRouteChange(_ notification: Notification) {
+        configureAudioSession()
+    }
     
     deinit {
+        NotificationCenter.default.removeObserver(self)
         webView?.removeObserver(self, forKeyPath: #keyPath(WKWebView.url))
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "streamAuth")
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "wakeLock")
