@@ -77,9 +77,18 @@ function showInactiveView() {
 }
 
 // Start Party
+function generateRoomCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let result = "";
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 btnStartParty?.addEventListener("click", async () => {
   const hostName = hostNameInput.value.trim() || "Host";
-  const newRoomId = "tp_" + Math.random().toString(36).substring(2, 9);
+  const newRoomId = generateRoomCode();
   const hostOnly = hostOnlyToggle?.checked ?? true;
 
   btnStartParty.disabled = true;
@@ -140,12 +149,14 @@ btnStartParty?.addEventListener("click", async () => {
 
 // Quick Join
 btnQuickJoin?.addEventListener("click", () => {
-  let code = joinCodeInput.value.trim();
+  let code = joinCodeInput.value.trim().toUpperCase();
   if (!code) return;
 
-  if (code.includes("/join/")) {
-    const parts = code.split("/join/");
+  if (code.includes("/JOIN/")) {
+    const parts = code.split("/JOIN/");
     code = parts[1].split(/[?#]/)[0];
+  } else if (code.includes("JUSTUS=")) {
+    code = code.split("JUSTUS=")[1].split("&")[0];
   }
 
   const session: RoomSession = {

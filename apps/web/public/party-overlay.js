@@ -1552,8 +1552,17 @@
   // ─────────────────────────────────────────────────────────────────
   // PARTY LIFECYCLE & SYNC LOGIC
   // ─────────────────────────────────────────────────────────────────
+  function generateRoomCode() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let result = "";
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
   function createParty() {
-    const newRoomId = "ju_" + Math.random().toString(36).substring(2, 8);
+    const newRoomId = generateRoomCode();
     isHost = true;
     activeRoomId = newRoomId;
 
@@ -1602,25 +1611,27 @@
 
       // 3. Connect Realtime Sync
       connectRealtimeChannel(newRoomId, true);
-      addEventLog(`🎉 ${currentUserName} created the watch party!`, currentUserName);
+      addEventLog(`🎉 ${currentUserName} created watch party [${newRoomId}]!`, currentUserName);
       updatePillState();
       renderDrawerContent();
     });
   }
 
   function joinParty(codeOrUrl) {
-    let cleanCode = codeOrUrl.trim();
-    if (cleanCode.includes("/join/")) {
-      cleanCode = cleanCode.split("/join/")[1].split("?")[0].split("/")[0];
-    } else if (cleanCode.includes("/party/")) {
-      cleanCode = cleanCode.split("/party/")[1].split("?")[0].split("/")[0];
+    let cleanCode = codeOrUrl.trim().toUpperCase();
+    if (cleanCode.includes("/JOIN/")) {
+      cleanCode = cleanCode.split("/JOIN/")[1].split("?")[0].split("/")[0];
+    } else if (cleanCode.includes("/PARTY/")) {
+      cleanCode = cleanCode.split("/PARTY/")[1].split("?")[0].split("/")[0];
+    } else if (cleanCode.includes("JUSTUS=")) {
+      cleanCode = cleanCode.split("JUSTUS=")[1].split("&")[0];
     }
     isHost = false;
     activeRoomId = cleanCode;
 
     loadSupabase(() => {
       connectRealtimeChannel(cleanCode, false);
-      addEventLog(`🍿 You joined the party (${cleanCode})`, currentUserName);
+      addEventLog(`🍿 You joined party [${cleanCode}]`, currentUserName);
       updatePillState();
       renderDrawerContent();
     });
@@ -1645,6 +1656,10 @@
       .on("broadcast", { event: "SYNC_HEARTBEAT" }, ({ payload }) => handleRemoteHeartbeat(payload))
       .on("broadcast", { event: "REQUEST_STATE" }, ({ payload }) => handleRequestState(payload))
       .on("broadcast", { event: "STATE_RESPONSE" }, ({ payload }) => handleStateResponse(payload))
+      .on("broadcast", { event: "HOST_LEFT" }, () => {
+        addEventLog("👋 Host ended the watch party", "System");
+        leaveParty(false);
+      })
       .on("broadcast", { event: "USER_JOINED" }, ({ payload }) => {
         if (payload.userName && payload.userName !== currentUserName) {
           addEventLog(`🍿 ${payload.userName} joined the watch party`, payload.userName);
@@ -2012,17 +2027,56 @@
   }
   checkUrlHash();
 
-  function leaveParty() {
+  function leaveParty(isLocalInitiated = true) {
     setWakeLock(false);
     leaveLiveKitCall();
     if (videoWindow) videoWindow.classList.add("hidden");
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+
+    if (isLocalInitiated && isHost && activeRoomId) {
+      const roomIdToPurge = activeRoomId;
+      // 1. Broadcast to peers that host has ended the party
+      if (activeChannel) {
+        try {
+          activeChannel.send({
+            type: "broadcast",
+            event: "HOST_LEFT",
+            payload: { sender: currentUserName },
+          });
+        } catch (e) {}
+      }
+
+      // 2. Direct Supabase purge
+      if (supabaseClient) {
+        supabaseClient.from("chat_messages").delete().eq("room_id", roomIdToPurge).then(() => {}).catch(() => {});
+        supabaseClient.from("room_participants").delete().eq("room_id", roomIdToPurge).then(() => {}).catch(() => {});
+        supabaseClient.from("rooms").delete().eq("id", roomIdToPurge).then(() => {}).catch(() => {});
+      }
+
+      // 3. API endpoint purge
+      fetch(`${API_BASE}/api/rooms?id=${encodeURIComponent(roomIdToPurge)}`, {
+        method: "DELETE",
+        keepalive: true,
+      }).catch(() => {});
+    }
+
     if (activeChannel && supabaseClient) {
       supabaseClient.removeChannel(activeChannel);
       activeChannel = null;
     }
     activeRoomId = null;
+    isHost = false;
     updatePillState();
     renderDrawerContent();
   }
+
+  // Purge room when host closes browser tab / window
+  window.addEventListener("beforeunload", () => {
+    if (isHost && activeRoomId) {
+      fetch(`${API_BASE}/api/rooms?id=${encodeURIComponent(activeRoomId)}`, {
+        method: "DELETE",
+        keepalive: true,
+      }).catch(() => {});
+    }
+  });
 })();
