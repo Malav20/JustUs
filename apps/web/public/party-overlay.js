@@ -234,7 +234,7 @@
   const hostDiv = document.createElement("div");
   hostDiv.id = "justus-party-overlay-root";
   hostDiv.style.cssText =
-    "all: initial !important; position: fixed !important; top: 0 !important; left: 0 !important; width: 0 !important; height: 0 !important; z-index: 2147483647 !important; pointer-events: none !important;";
+    "position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 2147483647 !important; pointer-events: none !important; margin: 0 !important; padding: 0 !important; border: none !important;";
 
   const shadow = hostDiv.attachShadow({ mode: "open" });
 
@@ -243,45 +243,48 @@
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     
     .badges-container {
-      position: fixed;
-      top: 14px;
-      right: 16px;
-      display: flex;
-      gap: 8px;
-      z-index: 2147483647;
-      pointer-events: none;
+      position: fixed !important;
+      top: max(14px, env(safe-area-inset-top, 14px)) !important;
+      right: max(16px, env(safe-area-inset-right, 16px)) !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      z-index: 2147483647 !important;
+      pointer-events: none !important;
     }
     
     .floating-pill {
-      height: 38px;
-      padding: 0 14px;
-      border-radius: 19px;
-      background: rgba(18, 20, 31, 0.92);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.22);
-      color: #fff;
-      font-size: 12px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      cursor: pointer;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-      pointer-events: auto;
-      user-select: none;
-      -webkit-user-select: none;
-      transition: transform 0.15s ease, background 0.2s ease;
+      height: 38px !important;
+      padding: 0 14px !important;
+      border-radius: 19px !important;
+      background: rgba(18, 20, 31, 0.94) !important;
+      backdrop-filter: blur(16px) !important;
+      -webkit-backdrop-filter: blur(16px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.25) !important;
+      color: #ffffff !important;
+      font-size: 12px !important;
+      font-weight: 700 !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 7px !important;
+      cursor: pointer !important;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+      pointer-events: auto !important;
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      transition: transform 0.15s ease, background 0.2s ease !important;
+      opacity: 1 !important;
+      visibility: visible !important;
     }
     .floating-pill:active { transform: scale(0.96); }
     .floating-pill.hidden { display: none !important; }
     .floating-pill.video-pill {
-      background: rgba(30, 27, 75, 0.92);
-      border-color: rgba(99, 102, 241, 0.35);
+      background: rgba(30, 27, 75, 0.94) !important;
+      border-color: rgba(99, 102, 241, 0.45) !important;
     }
     .floating-pill.video-pill.active {
-      background: rgba(6, 78, 59, 0.92);
-      border-color: rgba(16, 185, 129, 0.4);
+      background: rgba(6, 78, 59, 0.94) !important;
+      border-color: rgba(16, 185, 129, 0.5) !important;
     }
     .status-dot {
       width: 7px;
@@ -749,11 +752,12 @@
   shadow.appendChild(drawer);
 
   function ensureOverlayMounted() {
-    if (!document.getElementById("justus-party-overlay-root")) {
-      const target = document.body || document.documentElement;
-      if (target) {
-        target.appendChild(hostDiv);
-      }
+    const existing = document.getElementById("justus-party-overlay-root");
+    const target = document.body || document.documentElement;
+    if (!existing && target) {
+      target.appendChild(hostDiv);
+    } else if (existing && target && existing.parentElement !== target) {
+      target.appendChild(existing);
     }
   }
 
