@@ -110,10 +110,11 @@ export class NetflixAdapter implements IPlayerAdapter {
   }
 
   async seek(timeInSeconds: number): Promise<void> {
+    if (timeInSeconds <= 1.0) return;
+    const current = this.getCurrentTime();
+    if (Math.abs(current - timeInSeconds) < 2.0) return;
+
     await this.callBridge("NETFLIX_SEEK", { time: timeInSeconds });
-    if (this.videoEl && Math.abs(this.videoEl.currentTime - timeInSeconds) > 0.3) {
-      this.videoEl.currentTime = timeInSeconds;
-    }
   }
 
   getCurrentTime(): number {

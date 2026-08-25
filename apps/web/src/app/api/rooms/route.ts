@@ -23,19 +23,52 @@ export async function GET(req: NextRequest) {
     }
   } catch (e) {}
 
-  // Always return a valid fallback room so client join page never crashes
+  // Return default room data if not found
   return NextResponse.json({
     room: {
       id: roomId,
       host_id: "host_auto",
       service: roomId.startsWith("tp_") ? "netflix" : "netflix",
-      video_url: "https://www.netflix.com/watch/80057281",
-      title: "Teleparty Watch Room",
+      video_url: "https://www.netflix.com/browse",
+      title: "JustUS Watch Room",
       playback_time: 0,
       is_playing: false,
     },
     isFallback: true,
   });
+}
+
+// PATCH /api/rooms - Update active videoUrl or room title dynamically
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { id, videoUrl, title, playback_time, is_playing } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "Room ID is required" }, { status: 400 });
+    }
+
+    const updates: any = { updated_at: new Date().toISOString() };
+    if (videoUrl !== undefined) updates.video_url = videoUrl;
+    if (title !== undefined) updates.title = title;
+    if (playback_time !== undefined) updates.playback_time = playback_time;
+    if (is_playing !== undefined) updates.is_playing = is_playing;
+
+    const { data, error } = await supabaseAdmin
+      .from("rooms")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ room: data });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
 
 // POST /api/rooms - Create or upsert room

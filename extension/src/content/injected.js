@@ -39,16 +39,15 @@
     var video = document.querySelector("video");
 
     if (action === "NETFLIX_SEEK") {
+      if (!payload || payload.time <= 1.0) {
+        respond(requestId, { success: true });
+        return;
+      }
       var timeMs = payload.time * 1000;
-      var handled = false;
       if (player && typeof player.seek === "function") {
         try {
           player.seek(timeMs);
-          handled = true;
         } catch (e) {}
-      }
-      if (!handled && video) {
-        video.currentTime = payload.time;
       }
       respond(requestId, { success: true });
     } else if (action === "NETFLIX_PLAY") {

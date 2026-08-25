@@ -112,6 +112,10 @@
   }
 
   function seekVideo(timeInSeconds) {
+    if (timeInSeconds <= 1.0) return; // Do not interrupt player initialization at 00:00
+    const current = getCurrentVideoTime();
+    if (Math.abs(current - timeInSeconds) < 2.0) return; // Already in sync, avoid buffer thrashing
+
     const netflixPlayer = getNetflixPlayer();
     if (netflixPlayer && typeof netflixPlayer.seek === "function") {
       try {
@@ -120,8 +124,10 @@
       } catch (e) {}
     }
     const v = findVideoElement();
-    if (v && Math.abs(v.currentTime - timeInSeconds) > 0.4) {
-      v.currentTime = timeInSeconds;
+    if (v && Math.abs(v.currentTime - timeInSeconds) > 2.5) {
+      try {
+        v.currentTime = timeInSeconds;
+      } catch (e) {}
     }
   }
 
@@ -786,6 +792,16 @@
       .on("broadcast", { event: "CHAT" }, ({ payload }) => {
         addEventLog(payload.text, payload.sender, "chat");
       })
+      .on("broadcast", { event: "VIDEO_CHANGED" }, ({ payload }) => {
+        if (payload.videoUrl && !isHost) {
+          const currentUrl = window.location.href.split("#")[0].split("?")[0];
+          const targetUrl = payload.videoUrl.split("#")[0].split("?")[0];
+          if (currentUrl !== targetUrl && targetUrl.includes("/watch/")) {
+            addEventLog(`🎬 Host opened: ${payload.title || "Selected Video"}`, payload.sender);
+            window.location.href = payload.videoUrl + "#justus=" + activeRoomId;
+          }
+        }
+      })
       .on("presence", { event: "sync" }, () => {
         const state = activeChannel.presenceState();
         const count = Math.max(1, Object.keys(state).length);
@@ -829,11 +845,14 @@
     const timeStr = formatTime(payload.time);
     addEventLog(`▶️ Played video at ${timeStr}`, sender);
     isSyncActionInProgress = true;
+    const current = getCurrentVideoTime();
     const latency = (Date.now() - (payload.sentAt || Date.now())) / 1000;
     const target = payload.time + (latency > 0 && latency < 2 ? latency : 0);
-    seekVideo(target);
+    if (target > 1.0 && Math.abs(current - target) > 2.5) {
+      seekVideo(target);
+    }
     playVideo();
-    setTimeout(() => (isSyncActionInProgress = false), 1000);
+    setTimeout(() => (isSyncActionInProgress = false), 1200);
   }
 
   function handleRemotePause(payload) {
@@ -841,18 +860,21 @@
     const timeStr = formatTime(payload.time);
     addEventLog(`⏸️ Paused video at ${timeStr}`, sender);
     isSyncActionInProgress = true;
-    seekVideo(payload.time);
     pauseVideo();
-    setTimeout(() => (isSyncActionInProgress = false), 1000);
+    setTimeout(() => (isSyncActionInProgress = false), 1200);
   }
 
   function handleRemoteSeek(payload) {
+    if (!payload || payload.time < 1.0) return;
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
+    const current = getCurrentVideoTime();
+    if (Math.abs(current - payload.time) < 2.0) return;
+
     addEventLog(`⏩ Jumped to ${timeStr}`, sender);
     isSyncActionInProgress = true;
     seekVideo(payload.time);
-    setTimeout(() => (isSyncActionInProgress = false), 1000);
+    setTimeout(() => (isSyncActionInProgress = false), 1200);
   }
 
   function handleRemoteHeartbeat(payload) {
@@ -860,7 +882,7 @@
     const current = getCurrentVideoTime();
     const latency = (Date.now() - (payload.sentAt || Date.now())) / 1000;
     const target = payload.time + (payload.isPlaying && latency > 0 && latency < 2 ? latency : 0);
-    if (Math.abs(current - target) > 1.5) {
+    if (target > 1.0 && Math.abs(current - target) > 2.5) {
       seekVideo(target);
       if (payload.isPlaying && !isVideoPlaying()) playVideo();
     }
@@ -885,7 +907,9 @@
     isInitialSyncCompleted = true;
     const latency = (Date.now() - (payload.sentAt || Date.now())) / 1000;
     const target = payload.time + (payload.isPlaying && latency > 0 && latency < 2 ? latency : 0);
-    seekVideo(target);
+    if (target > 1.0) {
+      seekVideo(target);
+    }
     if (payload.isPlaying) playVideo();
     else pauseVideo();
   }
@@ -894,11 +918,14 @@
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     heartbeatTimer = setInterval(() => {
       if (!activeChannel || isSyncActionInProgress) return;
+      const current = getCurrentVideoTime();
+      if (current < 0.5 && !isVideoPlaying()) return; // Do not broadcast inactive 0 state
+
       activeChannel.send({
         type: "broadcast",
         event: "SYNC_HEARTBEAT",
         payload: {
-          time: getCurrentVideoTime(),
+          time: current,
           isPlaying: isVideoPlaying(),
           sender: currentUserName,
           sentAt: Date.now(),
@@ -942,6 +969,7 @@
     v.addEventListener("seeked", () => {
       if (isSyncActionInProgress || !activeChannel) return;
       const time = v.currentTime;
+      if (time < 1.0) return; // Suppress initial stream startup seek to 00:00
       activeChannel.send({
         type: "broadcast",
         event: "SEEK",
@@ -951,8 +979,42 @@
     });
   }
 
-  // Periodic video watcher to catch dynamic DOM changes
-  setInterval(attachLocalPlayerListeners, 2000);
+  // Track URL changes when host opens a movie or switches episodes
+  let lastRecordedUrl = window.location.href;
+  function checkUrlChange() {
+    if (!activeRoomId || !isHost) return;
+    const currentUrl = window.location.href;
+    if (currentUrl !== lastRecordedUrl && (currentUrl.includes("/watch/") || currentUrl.includes("/title/"))) {
+      lastRecordedUrl = currentUrl;
+      fetch(`${API_BASE}/api/rooms`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: activeRoomId,
+          videoUrl: currentUrl,
+          title: document.title || "Watch Party",
+        }),
+      }).catch(() => {});
+
+      if (activeChannel) {
+        activeChannel.send({
+          type: "broadcast",
+          event: "VIDEO_CHANGED",
+          payload: {
+            videoUrl: currentUrl,
+            title: document.title || "Watch Party",
+            sender: currentUserName,
+          },
+        });
+      }
+    }
+  }
+
+  // Periodic video and URL watcher to catch dynamic DOM changes
+  setInterval(() => {
+    attachLocalPlayerListeners();
+    checkUrlChange();
+  }, 2000);
 
   // Check URL hash for auto-join (#justus=ju_xxx)
   function checkUrlHash() {

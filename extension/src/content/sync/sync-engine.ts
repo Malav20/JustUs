@@ -135,6 +135,9 @@ export class SyncEngine {
       .on("broadcast", { event: "CHAT" }, ({ payload }) => {
         if (this.onChatReceived) this.onChatReceived(payload);
       })
+      .on("broadcast", { event: "VIDEO_CHANGED" }, ({ payload }) => {
+        this.handleVideoChanged(payload);
+      })
       .on("presence", { event: "sync" }, () => {
         const state = this.channel?.presenceState() || {};
         const count = Math.max(1, Object.keys(state).length);
@@ -278,6 +281,7 @@ export class SyncEngine {
       this.persistRoomState(time, false);
       if (this.onPlaybackAction) this.onPlaybackAction("pause", time, this.userName);
     } else if (event === "seeked") {
+      if (time <= 1.0) return; // Suppress stream startup seek to 00:00
       console.log(`[JustUS] Local SEEK to ${time.toFixed(2)}s -> Outbound broadcast`);
       this.broadcast("SEEK", payload);
       this.persistRoomState(time, this.adapter.isPlaying());
@@ -330,13 +334,14 @@ export class SyncEngine {
     if (this.onPlaybackAction) this.onPlaybackAction("pause", payload.time, senderName);
     this.withSyncLock(async () => {
       await this.adapter.pause();
-      if (Math.abs(this.adapter.getCurrentTime() - payload.time) > CONFIG.DRIFT_THRESHOLD_SECONDS) {
-        await this.adapter.seek(payload.time);
-      }
     });
   }
 
   private handleRemoteSeek(payload: SyncPayload) {
+    if (!payload || payload.time <= 1.0) return;
+    const current = this.adapter.getCurrentTime();
+    if (Math.abs(current - payload.time) < 2.0) return;
+
     const senderName = payload.sender || "Friend";
     console.log(`[JustUs] Remote SEEK received from ${senderName} to ${payload.time.toFixed(2)}s`);
     this.isInitialSyncCompleted = true;
@@ -427,6 +432,18 @@ export class SyncEngine {
 
     if (this.onChatReceived) {
       this.onChatReceived(message);
+    }
+  }
+
+  private handleVideoChanged(payload: { videoUrl?: string; title?: string; sender?: string }) {
+    if (!payload?.videoUrl || this.isHost) return;
+    const currentUrl = window.location.href;
+    const cleanCurrent = currentUrl.split("#")[0].split("?")[0];
+    const cleanTarget = payload.videoUrl.split("#")[0].split("?")[0];
+    if (cleanCurrent !== cleanTarget && cleanTarget.includes("/watch/")) {
+      console.log(`[JustUs SyncEngine] Host opened video: ${payload.videoUrl} -> Redirecting participant`);
+      const targetWithParty = `${cleanTarget}#tp=${encodeURIComponent(this.roomId)}&user=${encodeURIComponent(this.userName)}`;
+      window.location.href = targetWithParty;
     }
   }
 

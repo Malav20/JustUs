@@ -41,7 +41,10 @@ export default function JoinPage({ params }: PageProps) {
 
   const handleLaunchDesktopNetflix = () => {
     setRedirecting(true);
-    const baseVideoUrl = roomData?.video_url || "https://www.netflix.com/watch/80057281";
+    let baseVideoUrl = roomData?.video_url;
+    if (!baseVideoUrl || baseVideoUrl === "") {
+      baseVideoUrl = "https://www.netflix.com/browse";
+    }
     const finalUserName = userName.trim() || "Viewer_" + Math.floor(Math.random() * 1000);
     const cleanUrl = baseVideoUrl.split("#")[0];
     const targetUrl = `${cleanUrl}#tp=${encodeURIComponent(roomId)}&user=${encodeURIComponent(finalUserName)}`;
