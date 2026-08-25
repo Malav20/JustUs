@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -85,7 +85,13 @@ export function MobileWatchParty() {
     setSelectedService(service);
     setTargetUrl(url);
     setBrowserUrl(url);
-    setCurrentView("browser");
+    
+    if (service === "netflix" || service === "prime" || service === "youtube") {
+      // Navigate top-level in WebView to bypass X-Frame-Options
+      window.location.href = url;
+    } else {
+      setCurrentView("browser");
+    }
   };
 
   // Start / Join Party Session
@@ -96,9 +102,11 @@ export function MobileWatchParty() {
     setIsHost(host);
     setCurrentView("browser");
 
+    const apiBase = typeof window !== "undefined" ? window.location.origin : "https://just-us-web.vercel.app";
+
     // 1. Create Room in DB if host
     if (host) {
-      fetch("/api/rooms", {
+      fetch(`${apiBase}/api/rooms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -113,7 +121,7 @@ export function MobileWatchParty() {
 
     // 2. Connect LiveKit WebRTC Call
     try {
-      const res = await fetch("/api/livekit/token", {
+      const res = await fetch(`${apiBase}/api/livekit/token`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomId: targetRoom, userName: user }),
