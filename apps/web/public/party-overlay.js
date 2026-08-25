@@ -270,6 +270,7 @@
       transition: transform 0.15s ease, background 0.2s ease;
     }
     .floating-pill:active { transform: scale(0.96); }
+    .floating-pill.hidden { display: none !important; }
     .floating-pill.video-pill {
       background: rgba(30, 27, 75, 0.92);
       border-color: rgba(99, 102, 241, 0.35);
@@ -684,7 +685,7 @@
   const badgesContainer = document.createElement("div");
   badgesContainer.className = "badges-container";
   badgesContainer.innerHTML = `
-    <div class="floating-pill video-pill" id="ju-video-pill">
+    <div class="floating-pill video-pill hidden" id="ju-video-pill">
       <span class="status-dot idle" id="ju-video-dot"></span>
       <span id="ju-video-pill-text">📹 Video Call</span>
     </div>
@@ -1312,19 +1313,26 @@
   function updateVideoPillState() {
     const videoDot = shadow.getElementById("ju-video-dot");
     const videoPillText = shadow.getElementById("ju-video-pill-text");
-    const callDot = shadow.getElementById("ju-call-status-dot");
-    if (!videoDot || !videoPillText) return;
+    const vPill = shadow.getElementById("ju-video-pill");
+    if (!vPill) return;
 
-    if (isVideoCallActive) {
-      videoDot.className = "status-dot active";
-      videoPill.classList.add("active");
-      videoPillText.textContent = "📹 In Call";
-      if (callDot) callDot.className = "status-dot active";
-    } else {
-      videoDot.className = "status-dot idle";
-      videoPill.classList.remove("active");
-      videoPillText.textContent = "📹 Video Call";
-      if (callDot) callDot.className = "status-dot idle";
+    if (!activeRoomId) {
+      vPill.classList.add("hidden");
+      return;
+    }
+
+    vPill.classList.remove("hidden");
+
+    if (videoDot && videoPillText) {
+      if (isVideoCallActive) {
+        videoDot.className = "status-dot active";
+        vPill.classList.add("active");
+        videoPillText.textContent = "📹 In Call";
+      } else {
+        videoDot.className = "status-dot idle";
+        vPill.classList.remove("active");
+        videoPillText.textContent = "📹 Video Call";
+      }
     }
   }
 
@@ -1527,14 +1535,18 @@
   function updatePillState() {
     const dot = shadow.getElementById("ju-status-dot");
     const text = shadow.getElementById("ju-pill-text");
+    const vPill = shadow.getElementById("ju-video-pill");
     if (!dot || !text) return;
     if (activeRoomId) {
       dot.className = "status-dot";
       text.textContent = `👥 Party: ${activeRoomId}`;
+      if (vPill) vPill.classList.remove("hidden");
     } else {
       dot.className = "status-dot idle";
       text.textContent = "🎉 Watch Party";
+      if (vPill) vPill.classList.add("hidden");
     }
+    updateVideoPillState();
   }
 
   // ─────────────────────────────────────────────────────────────────
