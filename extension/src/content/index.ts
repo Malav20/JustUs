@@ -137,7 +137,7 @@ function stopPartySession() {
   }
 }
 
-// Check URL hash fragment (`#tp=...`), URL params, or stored session
+// Check URL hash fragment (`#tp=...` or `#justus=...`), URL params, or stored session
 async function checkInitialSession() {
   const hash = window.location.hash;
   const urlParams = new URLSearchParams(window.location.search);
@@ -145,10 +145,10 @@ async function checkInitialSession() {
   let partyId = urlParams.get("partyId") || urlParams.get("party") || urlParams.get("justus");
   let userName = "";
 
-  if (hash.includes("tp=")) {
+  if (hash.includes("tp=") || hash.includes("justus=")) {
     try {
       const hashParams = new URLSearchParams(hash.replace(/^#/, ""));
-      partyId = hashParams.get("tp") || hashParams.get("partyId") || partyId;
+      partyId = hashParams.get("tp") || hashParams.get("justus") || hashParams.get("partyId") || partyId;
       userName = hashParams.get("user") || userName;
       // Clean the hash from the browser address bar without reload
       history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -156,7 +156,7 @@ async function checkInitialSession() {
   }
 
   if (partyId) {
-    console.log("[Teleparty] Auto-launching from party parameter:", partyId);
+    console.log("[JustUs / Teleparty] Auto-launching from party parameter:", partyId);
     const session: RoomSession = {
       roomId: partyId,
       userName: userName || "Viewer_" + Math.floor(Math.random() * 1000),
@@ -180,6 +180,12 @@ async function checkInitialSession() {
     }
   });
 }
+
+window.addEventListener("yt-navigate-finish", () => {
+  if (!activeRoomId) {
+    checkInitialSession();
+  }
+});
 
 // Runtime listener
 chrome.runtime.onMessage.addListener((message) => {

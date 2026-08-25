@@ -1710,6 +1710,33 @@
     });
   }
 
+  function isSameVideoUrl(url1, url2) {
+    if (!url1 || !url2) return false;
+    try {
+      const u1 = new URL(url1, window.location.origin);
+      const u2 = new URL(url2, window.location.origin);
+      const v1 = u1.searchParams.get("v");
+      const v2 = u2.searchParams.get("v");
+      if (v1 && v2) return v1 === v2;
+      return u1.pathname === u2.pathname && u1.search === u2.search;
+    } catch (e) {
+      return url1.split("#")[0] === url2.split("#")[0];
+    }
+  }
+
+  function normalizeStreamingUrl(rawUrl) {
+    if (!rawUrl) return rawUrl;
+    try {
+      const u = new URL(rawUrl, window.location.origin);
+      if (window.location.hostname.includes("youtube") && u.hostname.includes("youtube")) {
+        u.hostname = window.location.hostname;
+      }
+      return u.toString();
+    } catch (e) {
+      return rawUrl;
+    }
+  }
+
   function connectRealtimeChannel(roomId, asHost) {
     if (!supabaseClient) return;
 
@@ -1743,12 +1770,13 @@
       })
       .on("broadcast", { event: "VIDEO_CHANGED" }, ({ payload }) => {
         if (payload.videoUrl && !isHost) {
-          const currentUrl = window.location.href.split("#")[0].split("?")[0];
-          const targetUrl = payload.videoUrl.split("#")[0].split("?")[0];
+          const currentUrl = window.location.href;
+          const targetUrl = normalizeStreamingUrl(payload.videoUrl);
           const isVideoPage = targetUrl.includes("/watch") || targetUrl.includes("/title/") || targetUrl.includes("/video/");
-          if (currentUrl !== targetUrl && isVideoPage) {
+          if (!isSameVideoUrl(currentUrl, targetUrl) && isVideoPage) {
             addEventLog(`🎬 Host opened: ${payload.title || "Selected Video"}`, payload.sender);
-            window.location.href = payload.videoUrl + (payload.videoUrl.includes("#") ? "&" : "#") + "justus=" + activeRoomId;
+            const sep = targetUrl.includes("#") ? "&" : "#";
+            window.location.href = targetUrl + sep + "justus=" + activeRoomId;
           }
         }
       })
@@ -1899,10 +1927,12 @@
     if (isSyncActionInProgress || isHost) return;
 
     if (payload.videoUrl && !isHost) {
-      const currentUrl = window.location.href.split("#")[0].split("?")[0];
-      const targetUrl = payload.videoUrl.split("#")[0].split("?")[0];
-      if (currentUrl !== targetUrl && targetUrl.includes("/watch/")) {
-        window.location.href = payload.videoUrl + "#justus=" + activeRoomId;
+      const currentUrl = window.location.href;
+      const targetUrl = normalizeStreamingUrl(payload.videoUrl);
+      const isVideoPage = targetUrl.includes("/watch") || targetUrl.includes("/title/") || targetUrl.includes("/video/");
+      if (!isSameVideoUrl(currentUrl, targetUrl) && isVideoPage) {
+        const sep = targetUrl.includes("#") ? "&" : "#";
+        window.location.href = targetUrl + sep + "justus=" + activeRoomId;
         return;
       }
     }
@@ -1950,10 +1980,12 @@
     isInitialSyncCompleted = true;
 
     if (payload.videoUrl && !isHost) {
-      const currentUrl = window.location.href.split("#")[0].split("?")[0];
-      const targetUrl = payload.videoUrl.split("#")[0].split("?")[0];
-      if (currentUrl !== targetUrl && targetUrl.includes("/watch/")) {
-        window.location.href = payload.videoUrl + "#justus=" + activeRoomId;
+      const currentUrl = window.location.href;
+      const targetUrl = normalizeStreamingUrl(payload.videoUrl);
+      const isVideoPage = targetUrl.includes("/watch") || targetUrl.includes("/title/") || targetUrl.includes("/video/");
+      if (!isSameVideoUrl(currentUrl, targetUrl) && isVideoPage) {
+        const sep = targetUrl.includes("#") ? "&" : "#";
+        window.location.href = targetUrl + sep + "justus=" + activeRoomId;
         return;
       }
     }
@@ -2053,7 +2085,9 @@
   function checkUrlChange() {
     if (!activeRoomId || !isHost) return;
     const currentUrl = window.location.href;
-    if (currentUrl !== lastRecordedUrl && (currentUrl.includes("/watch") || currentUrl.includes("/title/") || currentUrl.includes("/video/"))) {
+    if (isSameVideoUrl(currentUrl, lastRecordedUrl)) return;
+    const isVideoPage = currentUrl.includes("/watch") || currentUrl.includes("/title/") || currentUrl.includes("/video/");
+    if (isVideoPage) {
       lastRecordedUrl = currentUrl;
       fetch(`${API_BASE}/api/rooms`, {
         method: "PATCH",
@@ -2078,6 +2112,10 @@
       }
     }
   }
+
+  window.addEventListener("yt-navigate-finish", checkUrlChange);
+  window.addEventListener("yt-page-data-updated", checkUrlChange);
+  window.addEventListener("popstate", checkUrlChange);
 
   // Periodic video, URL, and wake lock watcher to catch dynamic DOM changes
   setInterval(() => {
