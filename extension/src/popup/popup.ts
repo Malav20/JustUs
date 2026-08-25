@@ -202,3 +202,18 @@ btnStopParty?.addEventListener("click", () => {
     showReadyView();
   });
 });
+
+// Mobile & Desktop Quick Link navigation handler
+document.querySelectorAll(".tp-service-link").forEach((el) => {
+  el.addEventListener("click", (e) => {
+    e.preventDefault();
+    const targetUrl = (el as HTMLAnchorElement).href;
+    if (targetUrl) {
+      if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
+        chrome.tabs.create({ url: targetUrl });
+      } else {
+        window.open(targetUrl, "_blank");
+      }
+    }
+  });
+});

@@ -3,6 +3,7 @@ import { resolve } from "path";
 import fs from "fs";
 
 export default defineConfig({
+  base: "",
   plugins: [
     {
       name: "build-extension-bundles",
@@ -35,12 +36,23 @@ export default defineConfig({
           },
         });
 
+        // Copy and flatten popup.html to root dist/popup.html with relative paths
+        const popupSrc = resolve(__dirname, "dist/src/popup/popup.html");
+        const popupDest = resolve(__dirname, "dist/popup.html");
+        if (fs.existsSync(popupSrc)) {
+          let html = fs.readFileSync(popupSrc, "utf-8");
+          // Ensure all resource paths are direct relative to root dist/
+          html = html.replace(/(src|href)=["'](?:(?:\.\.\/)+|\.\/|\/)?([^"']+)["']/g, '$1="./$2"');
+          fs.writeFileSync(popupDest, html);
+          console.log("[Vite] Successfully created root popup.html for mobile WebKit/Orion");
+        }
+
         // Copy manifest.json
         const manifestPath = resolve(__dirname, "manifest.json");
         const distPath = resolve(__dirname, "dist/manifest.json");
         if (fs.existsSync(manifestPath)) {
           const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-          manifest.action.default_popup = "src/popup/popup.html";
+          manifest.action.default_popup = "popup.html";
           fs.writeFileSync(distPath, JSON.stringify(manifest, null, 2));
         }
 

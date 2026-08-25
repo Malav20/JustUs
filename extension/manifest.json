@@ -21,7 +21,7 @@
     "https://*.vercel.app/*"
   ],
   "action": {
-    "default_popup": "src/popup/popup.html",
+    "default_popup": "popup.html",
     "default_title": "JustUS Watch Party"
   },
   "background": {
