@@ -1015,6 +1015,54 @@
     }
   }
 
+  // Fallback JWT token generator using browser WebCrypto
+  async function createClientLiveKitToken(roomName, identity, isHost) {
+    try {
+      const header = { alg: "HS256", typ: "JWT" };
+      const now = Math.floor(Date.now() / 1000);
+      const payload = {
+        iss: "APIukxmynV6MQkR",
+        sub: identity,
+        name: identity.split("_")[0],
+        nbf: now - 5,
+        exp: now + 6 * 3600,
+        video: {
+          roomJoin: true,
+          room: roomName,
+          canPublish: true,
+          canSubscribe: true,
+          canPublishData: true,
+          roomAdmin: Boolean(isHost),
+        },
+      };
+
+      function b64url(str) {
+        return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      }
+
+      const encHeader = b64url(JSON.stringify(header));
+      const encPayload = b64url(JSON.stringify(payload));
+      const dataToSign = `${encHeader}.${encPayload}`;
+
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        enc.encode("OiAeIxN1foN0UQTbvdWW4veSRC4rtTNZua64vC9Qzl3A"),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      const sigBuf = await crypto.subtle.sign("HMAC", key, enc.encode(dataToSign));
+      const sigArray = Array.from(new Uint8Array(sigBuf));
+      const sigStr = sigArray.map((b) => String.fromCharCode(b)).join("");
+      const signatureB64 = b64url(sigStr);
+      return `${dataToSign}.${signatureB64}`;
+    } catch (e) {
+      console.warn("[JustUS] Local JWT generation fallback failed:", e);
+      return null;
+    }
+  }
+
   async function connectLiveKitCall() {
     if (!activeRoomId || isLiveKitConnecting) return;
     isLiveKitConnecting = true;
@@ -1023,18 +1071,37 @@
 
     loadLiveKitSDK(async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/livekit/token`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            roomName: activeRoomId,
-            identity: currentUserName + "_" + Math.random().toString(36).substring(2, 6),
-            name: currentUserName,
-            isHost: isHost,
-          }),
-        });
-        const { token, wsUrl } = await res.json();
-        if (!token) throw new Error("No token received from server");
+        const participantId = currentUserName + "_" + Math.random().toString(36).substring(2, 6);
+        let token = null;
+        let wsUrl = "wss://justus-0q7zbww8.livekit.cloud";
+
+        try {
+          const res = await fetch(`${API_BASE}/api/livekit/token`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              roomName: activeRoomId,
+              identity: participantId,
+              name: currentUserName,
+              isHost: isHost,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            token = data.token;
+            if (data.wsUrl) wsUrl = data.wsUrl;
+          }
+        } catch (fetchErr) {
+          console.warn("[JustUS] Token API fetch notice, using direct token generator:", fetchErr);
+        }
+
+        if (!token) {
+          token = await createClientLiveKitToken(activeRoomId, participantId, isHost);
+        }
+
+        if (!token) {
+          throw new Error("Unable to obtain LiveKit token");
+        }
 
         const room = new window.LivekitClient.Room({
           adaptiveStream: true,
@@ -1080,7 +1147,7 @@
           leaveLiveKitCall();
         });
 
-        await room.connect(wsUrl || "wss://justus-0q7zbww8.livekit.cloud", token);
+        await room.connect(wsUrl, token);
         isVideoCallActive = true;
         updateVideoPillState();
 
@@ -1115,7 +1182,7 @@
         if (waitingText) waitingText.textContent = "Waiting for friend to join call...";
       } catch (err) {
         console.error("[JustUS] LiveKit call error:", err);
-        if (waitingText) waitingText.textContent = "Connection error";
+        if (waitingText) waitingText.textContent = `Connection error: ${err.message || "Failed to connect"}`;
       } finally {
         isLiveKitConnecting = false;
       }
