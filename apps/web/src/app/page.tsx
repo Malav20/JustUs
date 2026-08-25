@@ -1,24 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
-import { MobileWatchParty } from "@/components/MobileWatchParty";
 
 function LandingPageContent() {
-  const [isMobileOrApp, setIsMobileOrApp] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.() || !!(window as any).Capacitor;
-      const isTouch = navigator.maxTouchPoints > 0 || /iPad|iPhone|iPod|Android/i.test(navigator.userAgent);
-      setIsMobileOrApp(isCapacitor || isTouch);
-    }
-  }, []);
-
-  if (isMobileOrApp) {
-    return <MobileWatchParty />;
-  }
-
   return (
     <div className="relative min-h-screen bg-[#090A12] text-slate-100 overflow-hidden font-sans selection:bg-rose-500 selection:text-white">
       {/* Warm Ambient Romantic Glows */}
