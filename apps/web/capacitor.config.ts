@@ -1,4 +1,4 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+﻿import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.justus.watchparty',
@@ -9,10 +9,22 @@ const config: CapacitorConfig = {
     url: 'https://just-us-web.vercel.app/mobile',
     cleartext: true,
     allowNavigation: [
+      'netflix.com',
       '*.netflix.com',
+      'www.netflix.com',
+      'primevideo.com',
       '*.primevideo.com',
+      'www.primevideo.com',
+      'amazon.com',
       '*.amazon.com',
+      'youtube.com',
+      '*.youtube.com',
+      'www.youtube.com',
+      'googlevideo.com',
+      '*.googlevideo.com',
+      'livekit.cloud',
       '*.livekit.cloud',
+      'supabase.co',
       '*.supabase.co',
       'just-us-web.vercel.app',
       '*'
