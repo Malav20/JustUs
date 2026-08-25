@@ -481,25 +481,28 @@
     }
 
     .drawer-overlay {
-      position: fixed;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      width: 340px;
-      background: rgba(14, 16, 26, 0.96);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border-left: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: -10px 0 35px rgba(0, 0, 0, 0.6);
-      display: flex;
-      flex-direction: column;
-      color: #F1F5F9;
-      z-index: 2147483646;
-      pointer-events: auto;
-      transform: translateX(100%);
-      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      position: fixed !important;
+      top: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: min(340px, 92vw) !important;
+      max-width: 100vw !important;
+      background: rgba(14, 16, 26, 0.98) !important;
+      backdrop-filter: blur(24px) !important;
+      -webkit-backdrop-filter: blur(24px) !important;
+      border-left: 1px solid rgba(255, 255, 255, 0.15) !important;
+      box-shadow: -10px 0 40px rgba(0, 0, 0, 0.75) !important;
+      display: flex !important;
+      flex-direction: column !important;
+      color: #F1F5F9 !important;
+      z-index: 2147483647 !important;
+      pointer-events: auto !important;
+      transform: translateX(100%) !important;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
     }
-    .drawer-overlay.open { transform: translateX(0); }
+    .drawer-overlay.open {
+      transform: translateX(0) !important;
+    }
 
     .drawer-header {
       padding: 14px 16px;
@@ -785,6 +788,8 @@
   let lastPillToggleTimestamp = 0;
   let lastVideoToggleTimestamp = 0;
 
+  drawer.addEventListener("pointerdown", (e) => e.stopPropagation());
+  drawer.addEventListener("pointerup", (e) => e.stopPropagation());
   drawer.addEventListener("touchstart", (e) => e.stopPropagation());
   drawer.addEventListener("touchmove", (e) => e.stopPropagation());
   drawer.addEventListener("touchend", (e) => e.stopPropagation());
@@ -796,29 +801,9 @@
       e.stopPropagation();
     }
     const now = Date.now();
-    if (now - lastPillToggleTimestamp < 250) return;
+    if (now - lastPillToggleTimestamp < 450) return;
     lastPillToggleTimestamp = now;
-    toggleDrawer();
-  }
 
-  partyPill.addEventListener("click", handlePartyPillTap);
-  partyPill.addEventListener("touchend", handlePartyPillTap);
-
-  function handleVideoPillTap(e) {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    const now = Date.now();
-    if (now - lastVideoToggleTimestamp < 250) return;
-    lastVideoToggleTimestamp = now;
-    toggleVideoCallWindow();
-  }
-
-  videoPill.addEventListener("click", handleVideoPillTap);
-  videoPill.addEventListener("touchend", handleVideoPillTap);
-
-  function toggleDrawer() {
     if (drawer.classList.contains("open")) {
       drawer.classList.remove("open");
     } else {
@@ -826,6 +811,23 @@
       renderDrawerContent();
     }
   }
+
+  partyPill.addEventListener("pointerup", handlePartyPillTap);
+  partyPill.addEventListener("click", handlePartyPillTap);
+
+  function handleVideoPillTap(e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const now = Date.now();
+    if (now - lastVideoToggleTimestamp < 450) return;
+    lastVideoToggleTimestamp = now;
+    toggleVideoCallWindow();
+  }
+
+  videoPill.addEventListener("pointerup", handleVideoPillTap);
+  videoPill.addEventListener("click", handleVideoPillTap);
 
   function closeDrawer(e) {
     if (e) {
