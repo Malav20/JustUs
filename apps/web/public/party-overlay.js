@@ -48,9 +48,9 @@
     (document.head || document.documentElement).appendChild(script);
   }
 
-  // Detect Video Player (Netflix API or HTML5 video)
+  // Detect Video Player (YouTube, Netflix API or HTML5 video)
   function findVideoElement() {
-    return document.querySelector(".watch-video video, .sizing-wrapper video, video");
+    return document.querySelector(".html5-main-video, .watch-video video, .sizing-wrapper video, video");
   }
 
   function getNetflixPlayer() {
@@ -759,65 +759,49 @@
     document.addEventListener("DOMContentLoaded", ensureOverlayMounted);
   }
 
-  setInterval(ensureOverlayMounted, 2000);
+  window.addEventListener("yt-navigate-finish", ensureOverlayMounted);
+  window.addEventListener("popstate", ensureOverlayMounted);
+  window.addEventListener("load", ensureOverlayMounted);
+  setInterval(ensureOverlayMounted, 600);
 
-  // Party Pill Tap & Drag Handlers
-  let isDraggingPartyPill = false;
-  let partyDragStart = { x: 0, y: 0 };
-  let lastToggleTimestamp = 0;
+  // Party Pill Tap Handlers
+  let lastPillToggleTimestamp = 0;
+  let lastVideoToggleTimestamp = 0;
 
   drawer.addEventListener("touchstart", (e) => e.stopPropagation());
   drawer.addEventListener("touchmove", (e) => e.stopPropagation());
   drawer.addEventListener("touchend", (e) => e.stopPropagation());
   drawer.addEventListener("click", (e) => e.stopPropagation());
 
-  partyPill.addEventListener("touchstart", (e) => {
-    isDraggingPartyPill = false;
-    const touch = e.touches[0];
-    partyDragStart.x = touch.clientX;
-    partyDragStart.y = touch.clientY;
-  }, { passive: true });
-
-  partyPill.addEventListener("touchmove", (e) => {
-    const touch = e.touches[0];
-    if (Math.abs(touch.clientX - partyDragStart.x) > 8 || Math.abs(touch.clientY - partyDragStart.y) > 8) {
-      isDraggingPartyPill = true;
-    }
-  }, { passive: true });
-
-  partyPill.addEventListener("touchend", (e) => {
-    if (!isDraggingPartyPill) {
+  function handlePartyPillTap(e) {
+    if (e) {
       e.preventDefault();
       e.stopPropagation();
-      toggleDrawer();
     }
-  });
+    const now = Date.now();
+    if (now - lastPillToggleTimestamp < 250) return;
+    lastPillToggleTimestamp = now;
+    toggleDrawer();
+  }
 
-  partyPill.addEventListener("click", (e) => {
-    if (!isDraggingPartyPill) {
+  partyPill.addEventListener("click", handlePartyPillTap);
+  partyPill.addEventListener("touchend", handlePartyPillTap);
+
+  function handleVideoPillTap(e) {
+    if (e) {
       e.preventDefault();
       e.stopPropagation();
-      toggleDrawer();
     }
-  });
-
-  videoPill.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+    const now = Date.now();
+    if (now - lastVideoToggleTimestamp < 250) return;
+    lastVideoToggleTimestamp = now;
     toggleVideoCallWindow();
-  });
+  }
 
-  videoPill.addEventListener("touchend", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    toggleVideoCallWindow();
-  });
+  videoPill.addEventListener("click", handleVideoPillTap);
+  videoPill.addEventListener("touchend", handleVideoPillTap);
 
   function toggleDrawer() {
-    const now = Date.now();
-    if (now - lastToggleTimestamp < 350) return;
-    lastToggleTimestamp = now;
-
     if (drawer.classList.contains("open")) {
       drawer.classList.remove("open");
     } else {
@@ -828,6 +812,11 @@
 
   function closeDrawer(e) {
     if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    drawer.classList.remove("open");
+  }
       e.preventDefault();
       e.stopPropagation();
     }

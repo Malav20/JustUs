@@ -1,6 +1,7 @@
 import { IPlayerAdapter } from "./adapters/base-adapter";
 import { NetflixAdapter } from "./adapters/netflix-adapter";
 import { PrimeAdapter } from "./adapters/prime-adapter";
+import { YouTubeAdapter } from "./adapters/youtube-adapter";
 import { GenericAdapter } from "./adapters/generic-adapter";
 import { SyncEngine } from "./sync/sync-engine";
 import { TelepartySidebarUI } from "./ui/teleparty-sidebar";
@@ -11,10 +12,11 @@ let currentSyncEngine: SyncEngine | null = null;
 let currentSidebarUI: TelepartySidebarUI | null = null;
 let activeRoomId: string | null = null;
 
-function detectService(): "netflix" | "prime" | "generic" {
+function detectService(): "netflix" | "prime" | "youtube" | "generic" {
   const host = window.location.hostname;
   if (host.includes("netflix.com")) return "netflix";
   if (host.includes("primevideo.com") || host.includes("amazon.")) return "prime";
+  if (host.includes("youtube.com") || host.includes("youtu.be")) return "youtube";
   return "generic";
 }
 
@@ -22,6 +24,7 @@ function createAdapter(): IPlayerAdapter {
   const service = detectService();
   if (service === "netflix") return new NetflixAdapter();
   if (service === "prime") return new PrimeAdapter();
+  if (service === "youtube") return new YouTubeAdapter();
   return new GenericAdapter();
 }
 

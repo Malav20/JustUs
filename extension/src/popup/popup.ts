@@ -34,6 +34,8 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     activeTabUrl.includes("netflix.com") ||
     activeTabUrl.includes("primevideo.com") ||
     activeTabUrl.includes("amazon.") ||
+    activeTabUrl.includes("youtube.com") ||
+    activeTabUrl.includes("youtu.be") ||
     activeTabUrl.includes("localhost:3000/sandbox");
 
   // Check stored session
@@ -94,11 +96,19 @@ btnStartParty?.addEventListener("click", async () => {
   btnStartParty.disabled = true;
   btnStartParty.textContent = "Starting party...";
 
+  const serviceType = activeTabUrl.includes("netflix.com")
+    ? "netflix"
+    : activeTabUrl.includes("primevideo.com") || activeTabUrl.includes("amazon.")
+    ? "prime"
+    : activeTabUrl.includes("youtube.com") || activeTabUrl.includes("youtu.be")
+    ? "youtube"
+    : "generic";
+
   const session: RoomSession = {
     roomId: newRoomId,
     userName: hostName,
     isHost: true,
-    service: activeTabUrl.includes("netflix.com") ? "netflix" : activeTabUrl.includes("primevideo.com") ? "prime" : "generic",
+    service: serviceType,
     videoUrl: activeTabUrl,
     status: "connected",
     createdAt: Date.now(),
@@ -159,11 +169,19 @@ btnQuickJoin?.addEventListener("click", () => {
     code = code.split("JUSTUS=")[1].split("&")[0];
   }
 
+  const serviceType = activeTabUrl.includes("netflix.com")
+    ? "netflix"
+    : activeTabUrl.includes("primevideo.com") || activeTabUrl.includes("amazon.")
+    ? "prime"
+    : activeTabUrl.includes("youtube.com") || activeTabUrl.includes("youtu.be")
+    ? "youtube"
+    : "generic";
+
   const session: RoomSession = {
     roomId: code,
     userName: "Viewer",
     isHost: false,
-    service: activeTabUrl.includes("netflix.com") ? "netflix" : activeTabUrl.includes("primevideo.com") ? "prime" : "generic",
+    service: serviceType,
     videoUrl: activeTabUrl,
     status: "connecting",
     createdAt: Date.now(),

@@ -111,6 +111,7 @@ public class MainActivity extends BridgeActivity {
                              url.contains("primevideo.com") ||
                              url.contains("amazon.com") ||
                              url.contains("youtube.com") ||
+                             url.contains("youtu.be") ||
                              url.contains("googlevideo.com");
 
         runOnUiThread(() -> {

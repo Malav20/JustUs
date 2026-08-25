@@ -115,7 +115,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         if keyPath == #keyPath(WKWebView.url), let webView = self.webView, let currentUrl = webView.url {
             let urlString = currentUrl.absoluteString
-            let isExternal = urlString.contains("netflix.com") || urlString.contains("primevideo.com") || urlString.contains("amazon.com") || urlString.contains("youtube.com")
+            let isExternal = urlString.contains("netflix.com") || urlString.contains("primevideo.com") || urlString.contains("amazon.com") || urlString.contains("youtube.com") || urlString.contains("youtu.be")
             
             DispatchQueue.main.async {
                 self.floatingHubButton?.isHidden = !isExternal
