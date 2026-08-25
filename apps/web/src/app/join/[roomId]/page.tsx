@@ -34,16 +34,17 @@ export default function JoinPage({ params }: PageProps) {
       .catch(() => {});
   }, [roomId]);
 
-  const handleLaunch = () => {
+  const handleLaunchWebParty = () => {
+    const finalUserName = userName.trim() || "Viewer_" + Math.floor(Math.random() * 1000);
+    window.location.href = `/party/${encodeURIComponent(roomId)}?user=${encodeURIComponent(finalUserName)}`;
+  };
+
+  const handleLaunchDesktopNetflix = () => {
     setRedirecting(true);
     const baseVideoUrl = roomData?.video_url || "https://www.netflix.com/watch/80057281";
     const finalUserName = userName.trim() || "Viewer_" + Math.floor(Math.random() * 1000);
-
-    // Append client-side Hash fragment #tp=roomId&user=name
-    // URL hashes are purely client-side, never sent to Netflix server/DRM, avoiding D7375 errors
     const cleanUrl = baseVideoUrl.split("#")[0];
     const targetUrl = `${cleanUrl}#tp=${encodeURIComponent(roomId)}&user=${encodeURIComponent(finalUserName)}`;
-
     window.location.href = targetUrl;
   };
 
@@ -104,24 +105,24 @@ export default function JoinPage({ params }: PageProps) {
           />
         </div>
 
-        {/* Action Button */}
-        <div className="space-y-3">
+        {/* Action Buttons */}
+        <div className="space-y-2.5">
           <button
-            onClick={handleLaunch}
-            disabled={redirecting}
-            className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-sm transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2"
+            onClick={handleLaunchWebParty}
+            className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-red-600 to-indigo-600 hover:from-red-500 hover:to-indigo-500 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2"
           >
             <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            <span>{redirecting ? "Opening Video & Joining..." : "Launch Stream & Join Party"}</span>
+            <span>Enter Watch Party (Web & Mobile)</span>
           </button>
 
-          <Link
-            href={`/sandbox?room=${roomId}`}
+          <button
+            onClick={handleLaunchDesktopNetflix}
+            disabled={redirecting}
             className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-medium text-xs border border-white/10 flex items-center justify-center gap-2 transition-colors"
           >
-            <span>Open in Local Test Sandbox</span>
             <svg className="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
-          </Link>
+            <span>{redirecting ? "Opening Desktop Netflix..." : "Open Desktop Netflix (with Extension)"}</span>
+          </button>
         </div>
 
         <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">

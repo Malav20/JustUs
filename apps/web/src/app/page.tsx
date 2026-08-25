@@ -215,8 +215,8 @@ export default function HomePage() {
 
               <div className="flex items-center justify-between gap-3 text-xs">
                 <Link
-                  href={`/join/${createdRoom}`}
-                  className="flex-1 py-2.5 px-3 rounded-lg bg-white/10 hover:bg-white/15 text-white font-medium text-center transition-colors flex items-center justify-center gap-1.5"
+                  href={`/party/${createdRoom}`}
+                  className="flex-1 py-2.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-center transition-colors flex items-center justify-center gap-1.5"
                 >
                   <Play className="w-3.5 h-3.5" />
                   Enter Party Room
