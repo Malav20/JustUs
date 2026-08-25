@@ -80,14 +80,23 @@ export class SyncEngine {
     try {
       const { data: roomData } = await this.supabase
         .from("rooms")
-        .select("playback_time, is_playing")
+        .select("playback_time, is_playing, video_url")
         .eq("id", this.roomId)
         .single();
 
       if (roomData && !this.isHost) {
         console.log("[JustUs SyncEngine] Fetched room state from DB:", roomData);
+        if (roomData.video_url && roomData.video_url.includes("/watch/")) {
+          const currentUrl = window.location.href.split("#")[0].split("?")[0];
+          const targetUrl = roomData.video_url.split("#")[0].split("?")[0];
+          if (currentUrl !== targetUrl) {
+            console.log(`[JustUs SyncEngine] Room DB video is ${roomData.video_url} -> Redirecting`);
+            window.location.href = `${targetUrl}#tp=${encodeURIComponent(this.roomId)}&user=${encodeURIComponent(this.userName)}`;
+            return;
+          }
+        }
         await this.withSyncLock(async () => {
-          if (roomData.playback_time > 0) {
+          if (roomData.playback_time > 1.0) {
             await this.adapter.seek(roomData.playback_time);
           }
           if (roomData.is_playing) {
@@ -228,6 +237,7 @@ export class SyncEngine {
       payload: {
         time: this.adapter.getCurrentTime(),
         isPlaying: this.adapter.isPlaying(),
+        videoUrl: window.location.href,
         sentAt: Date.now(),
         sender: this.userName,
       },
@@ -241,11 +251,23 @@ export class SyncEngine {
     this.isInitialSyncCompleted = true;
     if (this.stateRequestRetryTimer) clearTimeout(this.stateRequestRetryTimer);
 
+    if (payload.videoUrl && !this.isHost) {
+      const currentUrl = window.location.href.split("#")[0].split("?")[0];
+      const targetUrl = payload.videoUrl.split("#")[0].split("?")[0];
+      if (currentUrl !== targetUrl && targetUrl.includes("/watch/")) {
+        console.log(`[JustUs SyncEngine] Handshake video target is ${payload.videoUrl} -> Redirecting`);
+        window.location.href = `${targetUrl}#tp=${encodeURIComponent(this.roomId)}&user=${encodeURIComponent(this.userName)}`;
+        return;
+      }
+    }
+
     this.withSyncLock(async () => {
       const latency = (Date.now() - payload.sentAt) / 1000;
       const targetTime = payload.time + (payload.isPlaying && latency > 0 && latency < 2 ? latency : 0);
 
-      await this.adapter.seek(targetTime);
+      if (targetTime > 1.0) {
+        await this.adapter.seek(targetTime);
+      }
       if (payload.isPlaying) {
         await this.adapter.play();
       } else {
@@ -354,6 +376,16 @@ export class SyncEngine {
   private handleRemoteHeartbeat(payload: SyncPayload) {
     if (this.isSyncActionInProgress) return;
 
+    if (payload.videoUrl && !this.isHost) {
+      const currentUrl = window.location.href.split("#")[0].split("?")[0];
+      const targetUrl = payload.videoUrl.split("#")[0].split("?")[0];
+      if (currentUrl !== targetUrl && targetUrl.includes("/watch/")) {
+        console.log(`[JustUs SyncEngine] Heartbeat indicates host is on ${payload.videoUrl} -> Redirecting`);
+        window.location.href = `${targetUrl}#tp=${encodeURIComponent(this.roomId)}&user=${encodeURIComponent(this.userName)}`;
+        return;
+      }
+    }
+
     const latency = (Date.now() - payload.sentAt) / 1000;
     const expectedTime = payload.isPlaying ? payload.time + latency : payload.time;
     const current = this.adapter.getCurrentTime();
@@ -368,7 +400,7 @@ export class SyncEngine {
       this.isInitialSyncCompleted = true;
       console.log(`[JustUS] Initial room state established: ${expectedTime.toFixed(2)}s (isPlaying: ${payload.isPlaying})`);
       this.withSyncLock(async () => {
-        if (expectedTime > 0.5) {
+        if (expectedTime > 1.0) {
           await this.adapter.seek(expectedTime);
         }
         if (payload.isPlaying) {
@@ -380,13 +412,15 @@ export class SyncEngine {
       return;
     }
 
-    // Auto-resync if drift > 1.5s and not in cooldown window (avoids spamming Netflix DRM player)
+    // Auto-resync if drift > 2.0s and not in cooldown window (avoids spamming Netflix DRM player)
     const now = Date.now();
     if (drift > CONFIG.DRIFT_THRESHOLD_SECONDS && now - this.lastDriftResyncTime > 6000) {
       this.lastDriftResyncTime = now;
       console.log(`[JustUS] Drift resync (${Math.round(drift * 1000)}ms) -> Target: ${expectedTime.toFixed(2)}s`);
       this.withSyncLock(async () => {
-        await this.adapter.seek(expectedTime);
+        if (expectedTime > 1.0) {
+          await this.adapter.seek(expectedTime);
+        }
         if (payload.isPlaying && !this.adapter.isPlaying()) {
           await this.adapter.play();
         } else if (!payload.isPlaying && this.adapter.isPlaying()) {
@@ -408,6 +442,7 @@ export class SyncEngine {
         payload: {
           time: this.adapter.getCurrentTime(),
           isPlaying: this.adapter.isPlaying(),
+          videoUrl: window.location.href,
           sentAt: Date.now(),
           sender: this.userName,
         },

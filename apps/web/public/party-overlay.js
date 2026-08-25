@@ -896,6 +896,8 @@
       payload: {
         time: getCurrentVideoTime(),
         isPlaying: isVideoPlaying(),
+        videoUrl: window.location.href,
+        title: document.title,
         sender: currentUserName,
         sentAt: Date.now(),
       },
@@ -905,6 +907,16 @@
   function handleStateResponse(payload) {
     if (isInitialSyncCompleted) return;
     isInitialSyncCompleted = true;
+
+    if (payload.videoUrl && !isHost) {
+      const currentUrl = window.location.href.split("#")[0].split("?")[0];
+      const targetUrl = payload.videoUrl.split("#")[0].split("?")[0];
+      if (currentUrl !== targetUrl && targetUrl.includes("/watch/")) {
+        window.location.href = payload.videoUrl + "#justus=" + activeRoomId;
+        return;
+      }
+    }
+
     const latency = (Date.now() - (payload.sentAt || Date.now())) / 1000;
     const target = payload.time + (payload.isPlaying && latency > 0 && latency < 2 ? latency : 0);
     if (target > 1.0) {
@@ -927,6 +939,8 @@
         payload: {
           time: current,
           isPlaying: isVideoPlaying(),
+          videoUrl: window.location.href,
+          title: document.title,
           sender: currentUserName,
           sentAt: Date.now(),
         },

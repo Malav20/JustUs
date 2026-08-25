@@ -3,6 +3,8 @@ export type StreamingService = "netflix" | "prime" | "generic";
 export interface SyncPayload {
   time: number;
   isPlaying?: boolean;
+  videoUrl?: string;
+  title?: string;
   sentAt: number;
   sender: string;
 }
