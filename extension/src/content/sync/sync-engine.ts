@@ -109,12 +109,14 @@ export class SyncEngine {
 
       if (roomData && !this.isHost) {
         console.log("[JustUs SyncEngine] Fetched room state from DB:", roomData);
-        if (roomData.video_url && roomData.video_url.includes("/watch/")) {
-          const currentUrl = window.location.href.split("#")[0].split("?")[0];
-          const targetUrl = roomData.video_url.split("#")[0].split("?")[0];
-          if (currentUrl !== targetUrl) {
+        if (roomData.video_url) {
+          const currentUrl = window.location.href.split("#")[0];
+          const targetUrl = roomData.video_url.split("#")[0];
+          const isVideoPage = targetUrl.includes("/watch") || targetUrl.includes("/title/") || targetUrl.includes("/video/");
+          if (currentUrl !== targetUrl && isVideoPage) {
             console.log(`[JustUs SyncEngine] Room DB video is ${roomData.video_url} -> Redirecting`);
-            window.location.href = `${targetUrl}#tp=${encodeURIComponent(this.roomId)}&user=${encodeURIComponent(this.userName)}`;
+            const sep = targetUrl.includes("#") ? "&" : "#";
+            window.location.href = `${targetUrl}${sep}tp=${encodeURIComponent(this.roomId)}&user=${encodeURIComponent(this.userName)}`;
             return;
           }
         }
@@ -312,11 +314,13 @@ export class SyncEngine {
     if (this.stateRequestRetryTimer) clearTimeout(this.stateRequestRetryTimer);
 
     if (payload.videoUrl && !this.isHost) {
-      const currentUrl = window.location.href.split("#")[0].split("?")[0];
-      const targetUrl = payload.videoUrl.split("#")[0].split("?")[0];
-      if (currentUrl !== targetUrl && targetUrl.includes("/watch/")) {
+      const currentUrl = window.location.href.split("#")[0];
+      const targetUrl = payload.videoUrl.split("#")[0];
+      const isVideoPage = targetUrl.includes("/watch") || targetUrl.includes("/title/") || targetUrl.includes("/video/");
+      if (currentUrl !== targetUrl && isVideoPage) {
         console.log(`[JustUs SyncEngine] Handshake video target is ${payload.videoUrl} -> Redirecting`);
-        window.location.href = `${targetUrl}#tp=${encodeURIComponent(this.roomId)}&user=${encodeURIComponent(this.userName)}`;
+        const sep = targetUrl.includes("#") ? "&" : "#";
+        window.location.href = `${targetUrl}${sep}tp=${encodeURIComponent(this.roomId)}&user=${encodeURIComponent(this.userName)}`;
         return;
       }
     }
@@ -444,11 +448,13 @@ export class SyncEngine {
     if (this.isSyncActionInProgress) return;
 
     if (payload.videoUrl && !this.isHost) {
-      const currentUrl = window.location.href.split("#")[0].split("?")[0];
-      const targetUrl = payload.videoUrl.split("#")[0].split("?")[0];
-      if (currentUrl !== targetUrl && targetUrl.includes("/watch/")) {
+      const currentUrl = window.location.href.split("#")[0];
+      const targetUrl = payload.videoUrl.split("#")[0];
+      const isVideoPage = targetUrl.includes("/watch") || targetUrl.includes("/title/") || targetUrl.includes("/video/");
+      if (currentUrl !== targetUrl && isVideoPage) {
         console.log(`[JustUs SyncEngine] Heartbeat indicates host is on ${payload.videoUrl} -> Redirecting`);
-        window.location.href = `${targetUrl}#tp=${encodeURIComponent(this.roomId)}&user=${encodeURIComponent(this.userName)}`;
+        const sep = targetUrl.includes("#") ? "&" : "#";
+        window.location.href = `${targetUrl}${sep}tp=${encodeURIComponent(this.roomId)}&user=${encodeURIComponent(this.userName)}`;
         return;
       }
     }
@@ -571,13 +577,13 @@ export class SyncEngine {
 
   private handleVideoChanged(payload: { videoUrl?: string; title?: string; sender?: string }) {
     if (!payload?.videoUrl || this.isHost) return;
-    const currentUrl = window.location.href;
-    const cleanCurrent = currentUrl.split("#")[0].split("?")[0];
-    const cleanTarget = payload.videoUrl.split("#")[0].split("?")[0];
-    if (cleanCurrent !== cleanTarget && cleanTarget.includes("/watch/")) {
+    const currentUrl = window.location.href.split("#")[0];
+    const targetUrl = payload.videoUrl.split("#")[0];
+    const isVideoPage = targetUrl.includes("/watch") || targetUrl.includes("/title/") || targetUrl.includes("/video/");
+    if (currentUrl !== targetUrl && isVideoPage) {
       console.log(`[JustUs SyncEngine] Host opened video: ${payload.videoUrl} -> Redirecting participant`);
-      const targetWithParty = `${cleanTarget}#tp=${encodeURIComponent(this.roomId)}&user=${encodeURIComponent(this.userName)}`;
-      window.location.href = targetWithParty;
+      const sep = targetUrl.includes("#") ? "&" : "#";
+      window.location.href = `${targetUrl}${sep}tp=${encodeURIComponent(this.roomId)}&user=${encodeURIComponent(this.userName)}`;
     }
   }
 
