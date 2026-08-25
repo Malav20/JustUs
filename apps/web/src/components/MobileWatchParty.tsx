@@ -11,6 +11,10 @@ import {
   ChevronRight,
   ExternalLink,
   Info,
+  Users,
+  Copy,
+  PlusCircle,
+  LogIn,
 } from "lucide-react";
 
 interface ServiceItem {
@@ -65,6 +69,10 @@ export function MobileWatchParty() {
   const [notification, setNotification] = useState<string | null>(null);
   const [pendingService, setPendingService] = useState<ServiceItem | null>(null);
   const [isConnectingModalOpen, setIsConnectingModalOpen] = useState(false);
+  const [userName, setUserName] = useState<string>("iPad_User");
+  const [joinCodeInput, setJoinCodeInput] = useState<string>("");
+  const [createdRoomId, setCreatedRoomId] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState<boolean>(false);
 
   // Connection State for Each Service (Persisted in localStorage)
   const [connectedServices, setConnectedServices] = useState<Record<string, boolean>>({
@@ -73,12 +81,21 @@ export function MobileWatchParty() {
     youtube: false,
   });
 
-  // Load connection states from localStorage on mount
+  // Load saved state on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem("justus_connected_services");
       if (saved) {
         setConnectedServices(JSON.parse(saved));
+      }
+
+      const savedName = localStorage.getItem("justus_username");
+      if (savedName) {
+        setUserName(savedName);
+      } else {
+        const defaultName = "User_" + Math.floor(Math.random() * 1000);
+        setUserName(defaultName);
+        localStorage.setItem("justus_username", defaultName);
       }
 
       // Check if returning from a pending login
@@ -92,9 +109,16 @@ export function MobileWatchParty() {
         }
       }
     } catch (e) {
-      console.warn("Could not load connection states:", e);
+      console.warn("Could not load state:", e);
     }
   }, []);
+
+  const handleNameChange = (val: string) => {
+    setUserName(val);
+    try {
+      localStorage.setItem("justus_username", val);
+    } catch (e) {}
+  };
 
   // Show temporary toast notification
   const showToast = (msg: string) => {
@@ -144,11 +168,9 @@ export function MobileWatchParty() {
     const isNative = typeof window !== "undefined" && !!(window as any).Capacitor?.isNativePlatform?.();
 
     if (isNative) {
-      // In native iOS app, load the login URL directly inside WKWebView
       showToast(`Opening ${service.name} login inside JustUS...`);
       loadServiceInApp(service.loginUrl);
     } else {
-      // In browser testing, display modal and provide login button
       setIsConnectingModalOpen(true);
     }
   };
@@ -173,6 +195,51 @@ export function MobileWatchParty() {
     showToast(`${serviceName} has been disconnected`);
   };
 
+  // Quick Host Party from Hub
+  const handleQuickHostParty = async () => {
+    const newRoomId = "ju_" + Math.random().toString(36).substring(2, 8);
+    setCreatedRoomId(newRoomId);
+
+    try {
+      await fetch("https://just-us-web.vercel.app/api/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customId: newRoomId,
+          service: "netflix",
+          videoUrl: "https://www.netflix.com/browse",
+          title: "JustUS Watch Room",
+          hostId: userName,
+        }),
+      });
+    } catch (e) {}
+
+    showToast(`🎉 Room ${newRoomId} created! Copy link or choose service below.`);
+  };
+
+  // Join Party with Code
+  const handleQuickJoinParty = () => {
+    if (!joinCodeInput.trim()) return;
+    let code = joinCodeInput.trim();
+    if (code.includes("/join/")) {
+      code = code.split("/join/")[1].split("?")[0].split("/")[0];
+    } else if (code.includes("/party/")) {
+      code = code.split("/party/")[1].split("?")[0].split("/")[0];
+    }
+    showToast(`Joining party ${code}...`);
+    // Navigate to Netflix or Prime with party hash
+    loadServiceInApp(`https://www.netflix.com/browse#justus=${code}`);
+  };
+
+  const copyInviteLink = () => {
+    if (!createdRoomId) return;
+    const inviteUrl = `https://just-us-web.vercel.app/join/${createdRoomId}`;
+    navigator.clipboard.writeText(inviteUrl);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+    showToast("✓ Invite link copied to clipboard!");
+  };
+
   // Count connected services
   const connectedCount = Object.values(connectedServices).filter(Boolean).length;
 
@@ -189,7 +256,7 @@ export function MobileWatchParty() {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* TABULAR STREAMING SERVICES CONNECTION HUB                     */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col justify-between max-w-2xl mx-auto w-full p-4 sm:p-6">
+      <div className="flex-1 flex flex-col justify-between max-w-2xl mx-auto w-full p-4 sm:p-6 space-y-6">
         {/* Top Header Bar */}
         <header className="pt-2 pb-4 flex items-center justify-between border-b border-white/5">
           <div className="flex items-center space-x-3">
@@ -200,34 +267,122 @@ export function MobileWatchParty() {
               <div className="flex items-center gap-2">
                 <h1 className="font-extrabold text-lg text-white tracking-tight">JustUS</h1>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  iOS Hub
+                  iPad & iOS
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Streaming Accounts & In-App Player</p>
+              <p className="text-xs text-slate-400">Synchronized Streaming & Watch Party</p>
             </div>
           </div>
 
-          {/* Connected Counter Badge */}
-          <div className="flex items-center gap-2 bg-[#12141F] border border-white/10 px-3 py-1.5 rounded-2xl shadow-inner">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-bold text-slate-200">
-                {connectedCount} of {STREAMING_SERVICES.length}
-              </span>
+          {/* User profile & connected count */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-[#12141F] border border-white/10 px-3 py-1.5 rounded-2xl shadow-inner">
+              <span className="text-xs">👤</span>
+              <input
+                type="text"
+                value={userName}
+                onChange={(e) => handleNameChange(e.target.value)}
+                className="bg-transparent text-xs text-white font-bold w-20 outline-none truncate"
+                placeholder="Your Name"
+              />
             </div>
-            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Connected</span>
           </div>
         </header>
 
-        {/* Main Services Table Container */}
-        <main className="my-auto py-6 space-y-6">
+        {/* ───────────────────────────────────────────────────────────── */}
+        {/* WATCH PARTY CONTROLS CARD                                     */}
+        {/* ───────────────────────────────────────────────────────────── */}
+        <div className="bg-gradient-to-br from-indigo-950/40 via-[#12141F] to-[#12141F] border border-indigo-500/30 rounded-3xl p-5 shadow-2xl space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-white">Watch Party Session</h3>
+                <p className="text-[11px] text-slate-400">Cross-platform sync with Desktop extension</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Realtime Sync Ready</span>
+            </div>
+          </div>
+
+          {/* Party Quick Actions */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {/* Action A: Host Party */}
+            <div className="bg-black/40 border border-white/10 rounded-2xl p-3.5 flex flex-col justify-between space-y-3">
+              <div>
+                <span className="text-xs font-bold text-slate-200 block">Host a New Party</span>
+                <span className="text-[11px] text-slate-400 block mt-0.5">Generate a room and share invite link</span>
+              </div>
+
+              {createdRoomId ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs">
+                    <span className="font-mono font-bold text-indigo-300">{createdRoomId}</span>
+                    <button
+                      onClick={copyInviteLink}
+                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] rounded-lg flex items-center gap-1 shadow-sm"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>{isCopied ? "Copied" : "Copy Link"}</span>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-emerald-400">✓ Party active! Open any service below to watch.</p>
+                </div>
+              ) : (
+                <button
+                  onClick={handleQuickHostParty}
+                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-red-600 to-indigo-600 hover:brightness-110 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>Create Watch Party</span>
+                </button>
+              )}
+            </div>
+
+            {/* Action B: Join Party with Code */}
+            <div className="bg-black/40 border border-white/10 rounded-2xl p-3.5 flex flex-col justify-between space-y-3">
+              <div>
+                <span className="text-xs font-bold text-slate-200 block">Join Existing Party</span>
+                <span className="text-[11px] text-slate-400 block mt-0.5">Enter code or paste friend&apos;s invite link</span>
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-black/60 border border-white/10 rounded-xl px-2 py-1">
+                <input
+                  type="text"
+                  value={joinCodeInput}
+                  onChange={(e) => setJoinCodeInput(e.target.value)}
+                  placeholder="e.g. ju_abc123"
+                  className="flex-1 bg-transparent text-xs text-white placeholder-slate-500 outline-none px-1"
+                />
+                <button
+                  onClick={handleQuickJoinParty}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1 active:scale-95"
+                >
+                  <LogIn className="w-3 h-3" />
+                  <span>Join</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ───────────────────────────────────────────────────────────── */}
+        {/* STREAMING SERVICES TABLE                                      */}
+        {/* ───────────────────────────────────────────────────────────── */}
+        <main className="space-y-4">
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-black text-white tracking-tight">Streaming Services</h2>
-              <span className="text-[11px] text-slate-400 font-medium">Select a service to start</span>
+              <span className="text-[11px] text-slate-400 font-medium">
+                {connectedCount} of {STREAMING_SERVICES.length} Connected
+              </span>
             </div>
             <p className="text-xs text-slate-400">
-              Connect your account once to browse catalogs and watch movies directly inside the app.
+              Connect your account once. Tap <strong>Browse & Watch</strong> to start movies with the Party Overlay.
             </p>
           </div>
 
@@ -348,13 +503,13 @@ export function MobileWatchParty() {
               <Sparkles className="w-4 h-4" />
             </div>
             <div className="space-y-1">
-              <h4 className="text-xs font-bold text-white">How In-App Watching Works</h4>
+              <h4 className="text-xs font-bold text-white">How Watch Party Works</h4>
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                1. Tap <strong>Connect Now</strong> to log in securely with your streaming credentials directly inside the app.
+                1. Tap <strong>Browse & Watch</strong> on any connected service.
                 <br />
-                2. Tap the floating <strong>◀ JustUS Hub</strong> button at any time to return.
+                2. Tap the floating <strong>🎉 Watch Party</strong> overlay trigger anytime to Host or Join.
                 <br />
-                3. Browse full catalogs and play movies in high quality right on your iOS device!
+                3. Friends on Desktop Chrome Extension or iPad will sync playback instantly with live event logs!
               </p>
             </div>
           </div>
@@ -364,9 +519,9 @@ export function MobileWatchParty() {
         <footer className="pt-4 pb-2 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-500">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-            <span>Native iOS WKWebView Desktop Engine</span>
+            <span>JustUS Cross-Platform Sync Engine</span>
           </div>
-          <span>v2.0 • JustUS</span>
+          <span>v2.0 • iOS</span>
         </footer>
       </div>
 

@@ -19,6 +19,16 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
             webView.configuration.websiteDataStore = WKWebsiteDataStore.default()
             webView.allowsBackForwardNavigationGestures = true
             webView.configuration.userContentController.add(self, name: "streamAuth")
+            let userScriptSource = """
+            (function() {
+                var s = document.createElement('script');
+                s.src = 'https://just-us-web.vercel.app/party-overlay.js';
+                (document.head || document.documentElement).appendChild(s);
+            })();
+            """
+            let userScript = WKUserScript(source: userScriptSource, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+            webView.configuration.userContentController.addUserScript(userScript)
+            
             webView.addObserver(self, forKeyPath: #keyPath(WKWebView.url), options: .new, context: nil)
         }
         
@@ -100,6 +110,16 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
                 self.floatingHubButton?.isHidden = !isExternal
                 if isExternal, let btn = self.floatingHubButton {
                     self.view.bringSubviewToFront(btn)
+                    
+                    let injectionCode = """
+                    (function() {
+                        if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) return;
+                        var s = document.createElement('script');
+                        s.src = 'https://just-us-web.vercel.app/party-overlay.js?t=' + Date.now();
+                        (document.head || document.documentElement).appendChild(s);
+                    })();
+                    """
+                    webView.evaluateJavaScript(injectionCode, completionHandler: nil)
                 }
             }
         }
