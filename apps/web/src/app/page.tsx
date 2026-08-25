@@ -14,10 +14,12 @@ function LandingPageContent() {
       {/* Header */}
       <header className="border-b border-white/5 bg-[#090A12]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-rose-500 to-indigo-600 flex items-center justify-center text-sm text-white shadow-lg shadow-rose-500/25">
-              ❤️
-            </div>
+          <Link href="/" className="flex items-center space-x-3 group">
+            <img
+              src="/logo.png"
+              alt="JustUS Logo"
+              className="h-10 w-10 rounded-2xl object-cover shadow-lg shadow-rose-500/25 border border-white/10 group-hover:scale-105 transition-transform"
+            />
             <div>
               <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-rose-100 to-purple-200 bg-clip-text text-transparent">
                 JustUS
@@ -26,7 +28,7 @@ function LandingPageContent() {
                 🍓 Strawberry & 🦁 Lion
               </span>
             </div>
-          </div>
+          </Link>
 
           <div className="flex items-center space-x-3">
             <Link
@@ -41,8 +43,20 @@ function LandingPageContent() {
       </header>
 
       {/* Hero Section */}
-      <main className="max-w-4xl mx-auto px-6 pt-16 pb-24 relative z-10 space-y-16">
+      <main className="max-w-4xl mx-auto px-6 pt-12 pb-24 relative z-10 space-y-16">
         <div className="text-center space-y-6 max-w-2xl mx-auto">
+          {/* Featured Hero Logo Badge */}
+          <div className="flex justify-center pt-2">
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-rose-500 via-purple-600 to-indigo-600 rounded-3xl blur-md opacity-75 group-hover:opacity-100 transition duration-500"></div>
+              <img
+                src="/logo.png"
+                alt="JustUS - Strawberry & Lion"
+                className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-3xl object-cover shadow-2xl border border-white/20 transform group-hover:scale-105 transition-transform duration-300"
+              />
+            </div>
+          </div>
+
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-rose-500/15 via-purple-500/15 to-amber-500/15 border border-rose-500/30 text-rose-200 text-xs font-bold tracking-wide shadow-inner">
             <span>🍓</span>
             <span>Strawberry & Lion's Private Cinema</span>

@@ -299,9 +299,11 @@ export default function MobileWatchPartyPage() {
     return (
       <div className="min-h-screen bg-[#0B0C15] text-white flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-sm bg-[#131524] border border-white/10 rounded-2xl p-6 shadow-2xl space-y-6 text-center">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-red-600 to-indigo-600 flex items-center justify-center font-black text-2xl shadow-lg">
-            JU
-          </div>
+          <img
+            src="/logo.png"
+            alt="JustUS"
+            className="w-16 h-16 mx-auto rounded-2xl object-cover shadow-xl border border-white/15"
+          />
           <div>
             <h1 className="text-2xl font-bold">Join JustUS Party</h1>
             <p className="text-xs text-slate-400 mt-1">Room: <span className="text-indigo-400 font-mono">{roomId}</span></p>
@@ -359,9 +361,11 @@ export default function MobileWatchPartyPage() {
       {/* 2. Top App Bar */}
       <header className="absolute top-0 left-0 right-0 h-14 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between px-4 z-40">
         <div className="flex items-center space-x-2">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-red-600 to-indigo-600 flex items-center justify-center font-bold text-xs">
-            JU
-          </div>
+          <img
+            src="/logo.png"
+            alt="JustUS"
+            className="w-7 h-7 rounded-lg object-cover border border-white/20"
+          />
           <span className="text-xs font-bold text-white tracking-wider">JUSTUS PARTY</span>
         </div>
         <div className="flex items-center space-x-3">

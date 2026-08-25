@@ -744,7 +744,22 @@
   drawer.className = "drawer-overlay";
   shadow.appendChild(drawer);
 
-  document.body.appendChild(hostDiv);
+  function ensureOverlayMounted() {
+    if (!document.getElementById("justus-party-overlay-root")) {
+      const target = document.body || document.documentElement;
+      if (target) {
+        target.appendChild(hostDiv);
+      }
+    }
+  }
+
+  if (document.body || document.documentElement) {
+    ensureOverlayMounted();
+  } else {
+    document.addEventListener("DOMContentLoaded", ensureOverlayMounted);
+  }
+
+  setInterval(ensureOverlayMounted, 2000);
 
   // Party Pill Tap & Drag Handlers
   let isDraggingPartyPill = false;
@@ -1375,7 +1390,7 @@
       drawer.innerHTML = `
         <div class="drawer-header">
           <div class="brand-title">
-            <span>🍿</span>
+            <img src="${API_BASE}/logo.png" style="width: 22px; height: 22px; border-radius: 6px; object-fit: cover;" />
             <span>JustUS Watch Party</span>
           </div>
           <button class="close-btn" id="ju-close-drawer">✕</button>
@@ -1455,6 +1470,7 @@
       drawer.innerHTML = `
         <div class="drawer-header">
           <div class="brand-title">
+            <img src="${API_BASE}/logo.png" style="width: 20px; height: 20px; border-radius: 6px; object-fit: cover;" />
             <span class="status-dot"></span>
             <span>Party Active</span>
           </div>

@@ -13,6 +13,11 @@ export const metadata: Metadata = {
     siteName: "JustUS • Malav & Rutwa",
     type: "website",
   },
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/logo.png",
+  },
   twitter: {
     card: "summary_large_image",
     title: "JustUS ❤️ • Strawberry & Lion's Private Cinema",

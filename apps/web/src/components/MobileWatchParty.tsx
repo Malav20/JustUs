@@ -208,14 +208,16 @@ export function MobileWatchParty() {
         {/* Top Header Bar */}
         <header className="pt-2 pb-4 flex items-center justify-between border-b border-white/5">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-red-600 via-purple-600 to-indigo-600 flex items-center justify-center font-black text-white text-base shadow-lg shadow-indigo-500/25">
-              JU
-            </div>
+            <img
+              src="/logo.png"
+              alt="JustUS"
+              className="w-11 h-11 rounded-2xl object-cover shadow-lg shadow-indigo-500/25 border border-white/15 shrink-0"
+            />
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-extrabold text-lg text-white tracking-tight">JustUS</h1>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  iPad & iOS
+                  Mobile & Tablet
                 </span>
               </div>
               <p className="text-xs text-slate-400">Synchronized Streaming & Watch Party</p>
@@ -388,7 +390,7 @@ export function MobileWatchParty() {
             <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
             <span>JustUS Cross-Platform Sync Engine</span>
           </div>
-          <span>v2.0 • iOS</span>
+          <span>v2.0 • Android / iOS</span>
         </footer>
       </div>
 

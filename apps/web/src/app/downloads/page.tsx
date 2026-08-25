@@ -22,9 +22,11 @@ export default function DownloadsPage() {
       <header className="border-b border-white/5 bg-[#090A12]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center space-x-3 group">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-rose-500 to-indigo-600 flex items-center justify-center text-sm text-white shadow-lg shadow-rose-500/25 group-hover:scale-105 transition-transform">
-              ❤️
-            </div>
+            <img
+              src="/logo.png"
+              alt="JustUS Logo"
+              className="h-10 w-10 rounded-2xl object-cover shadow-lg shadow-rose-500/25 border border-white/10 group-hover:scale-105 transition-transform"
+            />
             <div>
               <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-rose-100 to-purple-200 bg-clip-text text-transparent">
                 JustUS

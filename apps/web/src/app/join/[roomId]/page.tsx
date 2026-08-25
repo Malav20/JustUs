@@ -65,9 +65,11 @@ export default function JoinPage({ params }: PageProps) {
 
       <div className="w-full max-w-md bg-[#12141F] border border-white/10 rounded-2xl p-8 shadow-2xl relative z-10 space-y-6">
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/30 mx-auto mb-4">
-            <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
-          </div>
+          <img
+            src="/logo.png"
+            alt="JustUS"
+            className="w-16 h-16 rounded-2xl object-cover shadow-xl shadow-indigo-500/30 mx-auto mb-3 border border-white/15"
+          />
           <h1 className="text-2xl font-bold text-white tracking-tight">
             Join JustUS Party
           </h1>
