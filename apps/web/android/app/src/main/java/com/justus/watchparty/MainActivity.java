@@ -27,7 +27,7 @@ public class MainActivity extends BridgeActivity {
     private float startX, startY;
     private static final int CLICK_ACTION_THRESHOLD = 10;
     private static final String HUB_URL = "https://just-us-web.vercel.app/mobile";
-    private static final String DESKTOP_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+    private static final String DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
 
     public class WakeLockBridge {
         @JavascriptInterface
@@ -54,6 +54,13 @@ public class MainActivity extends BridgeActivity {
             settings.setDatabaseEnabled(true);
             settings.setMediaPlaybackRequiresUserGesture(false);
             settings.setAllowFileAccess(true);
+            settings.setAllowContentAccess(true);
+            settings.setAllowFileAccessFromFileURLs(true);
+            settings.setAllowUniversalAccessFromFileURLs(true);
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+            settings.setJavaScriptCanOpenWindowsAutomatically(true);
+            settings.setLoadsImagesAutomatically(true);
+            settings.setCacheMode(WebSettings.LOAD_DEFAULT);
             settings.setUserAgentString(DESKTOP_USER_AGENT);
 
             CookieManager cookieManager = CookieManager.getInstance();
@@ -63,7 +70,7 @@ public class MainActivity extends BridgeActivity {
             // Register native wake lock bridge for JavaScript
             webView.addJavascriptInterface(new WakeLockBridge(), "AndroidWakeLock");
 
-            // WebChromeClient with camera & microphone auto-grant for LiveKit video calls
+            // WebChromeClient with camera, microphone & protected DRM media auto-grant
             webView.setWebChromeClient(new BridgeWebChromeClient(this.bridge) {
                 @Override
                 public void onPermissionRequest(final PermissionRequest request) {
@@ -118,6 +125,7 @@ public class MainActivity extends BridgeActivity {
         if (isExternal) {
             String injectionScript =
                 "(function() {" +
+                "  try { Object.defineProperty(navigator, 'platform', { get: function() { return 'Win32'; } }); } catch(e) {}" +
                 "  if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) return;" +
                 "  var s = document.createElement('script');" +
                 "  s.src = 'https://just-us-web.vercel.app/party-overlay.js?t=' + Date.now();" +
