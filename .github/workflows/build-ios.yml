@@ -5,6 +5,9 @@ on:
   push:
     branches: [ main, master ]
 
+permissions:
+  contents: write
+
 jobs:
   build-ipa:
     runs-on: macos-14
@@ -49,3 +52,16 @@ jobs:
         with:
           name: JustUS-iOS-IPA
           path: apps/web/ios/App/JustUS.ipa
+
+      - name: Release IPA to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        with:
+          tag_name: latest
+          name: "JustUS Latest App Releases"
+          draft: false
+          prerelease: false
+          files: |
+            apps/web/ios/App/JustUS.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

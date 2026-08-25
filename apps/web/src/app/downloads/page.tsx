@@ -134,56 +134,67 @@ export default function DownloadsPage() {
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-white">Malav's iPad & iPhone App</h2>
+                    <h2 className="text-base font-bold text-white">Malav & Rutwa's iPad & iPhone App</h2>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded-full border border-purple-500/30">
-                      🥭 Sweetums
+                      🍎 iOS 15+
                     </span>
                   </div>
                   <p className="text-xs text-slate-400">
-                    Dedicated iPadOS & iOS application with embedded desktop video player & floating PIP camera.
+                    Native iOS & iPadOS application with synchronized video playback, overlay hub & floating Picture-in-Picture camera.
                   </p>
                 </div>
               </div>
 
               <a
-                href="/justus-ios-project.zip"
-                download
-                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white font-bold text-xs rounded-xl text-center shadow-lg shadow-purple-600/30 transition-all shrink-0 flex items-center justify-center gap-1.5"
+                href="https://github.com/Malav20/JustUs/releases/latest/download/JustUS.ipa"
+                download="JustUS.ipa"
+                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl text-center shadow-lg shadow-purple-600/30 transition-all shrink-0 flex items-center justify-center gap-1.5"
               >
                 <span>🍎</span>
-                <span>Download iOS Project (.zip)</span>
+                <span>Download iOS App (.ipa)</span>
               </a>
             </div>
 
-            <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400 bg-black/20 rounded-xl px-4 py-2.5">
-              <span>Ready for Xcode or sideloading via Sideloadly / AltStore onto iPad & iPhone</span>
-              <span className="text-purple-300 font-bold text-[10px] uppercase">iOS 15+</span>
+            <div className="mt-5 pt-4 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-400 bg-black/20 rounded-xl px-4 py-2.5">
+              <span>Ready for sideloading via <strong>Sideloadly</strong>, <strong>AltStore</strong>, <strong>TrollStore</strong>, or <strong>Scarlet</strong></span>
+              <span className="text-purple-300 font-bold text-[10px] uppercase">Built via GitHub Actions</span>
             </div>
           </div>
 
-          {/* Item 3: Android Mobile (Coming Soon) */}
-          <div className="p-6 rounded-2xl bg-[#121422]/60 border border-white/5 shadow-md relative overflow-hidden backdrop-blur-md opacity-80">
+          {/* Item 3: Android Mobile & Tablet */}
+          <div className="p-6 rounded-2xl bg-[#121422]/90 border border-emerald-500/25 hover:border-emerald-500/45 shadow-xl transition-all relative overflow-hidden backdrop-blur-md">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-2xl shrink-0">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-2xl shrink-0">
                   📱
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-slate-200">Android Mobile App</h2>
+                    <h2 className="text-base font-bold text-white">Android Mobile & Tablet App</h2>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                      🚀 Coming Soon
+                      🤖 Android 7.0+
                     </span>
                   </div>
                   <p className="text-xs text-slate-400">
-                    Dedicated Android APK with floating video bubble & background sync is currently in the oven.
+                    Dedicated Android APK with auto-injected watch party overlay, 1-on-1 video call PIP & floating JustUS Hub.
                   </p>
                 </div>
               </div>
 
-              <div className="px-4 py-2 bg-white/5 text-slate-400 font-semibold text-xs rounded-xl text-center border border-white/10 shrink-0 cursor-not-allowed">
-                Baking Soon ☕
-              </div>
+              <a
+                href="https://github.com/Malav20/JustUs/releases/latest/download/JustUS.apk"
+                download="JustUS.apk"
+                className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl text-center shadow-lg shadow-emerald-600/30 transition-all shrink-0 flex items-center justify-center gap-1.5"
+              >
+                <span>⚡</span>
+                <span>Download Android APK (.apk)</span>
+              </a>
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-400 bg-black/20 rounded-xl px-4 py-2.5">
+              <span>Direct install on any Android phone or tablet (allow install unknown apps)</span>
+              <span className="text-emerald-300 font-bold text-[10px] uppercase">Built via GitHub Actions</span>
             </div>
           </div>
         </div>
