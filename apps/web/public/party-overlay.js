@@ -882,13 +882,13 @@
     addEventLog(`▶️ Played video at ${timeStr}`, sender);
     isSyncActionInProgress = true;
     const current = getCurrentVideoTime();
-    const latency = (Date.now() - (payload.sentAt || Date.now())) / 1000;
-    const target = payload.time + (latency > 0 && latency < 2 ? latency : 0);
-    if (target > 1.0 && Math.abs(current - target) > 2.5) {
+    const latency = Math.max(0, (Date.now() - (payload.sentAt || Date.now())) / 1000);
+    const target = payload.time + (latency > 0 && latency < 1.5 ? latency : 0);
+    if (target > 1.0 && Math.abs(current - target) > 0.35) {
       seekVideo(target);
     }
     playVideo();
-    setTimeout(() => (isSyncActionInProgress = false), 1200);
+    setTimeout(() => (isSyncActionInProgress = false), 1000);
   }
 
   function handleRemotePause(payload) {
@@ -897,7 +897,10 @@
     addEventLog(`⏸️ Paused video at ${timeStr}`, sender);
     isSyncActionInProgress = true;
     pauseVideo();
-    setTimeout(() => (isSyncActionInProgress = false), 1200);
+    if (payload.time > 1.0 && Math.abs(getCurrentVideoTime() - payload.time) > 0.25) {
+      seekVideo(payload.time);
+    }
+    setTimeout(() => (isSyncActionInProgress = false), 1000);
   }
 
   function handleRemoteSeek(payload) {
@@ -905,12 +908,12 @@
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
     const current = getCurrentVideoTime();
-    if (Math.abs(current - payload.time) < 2.0) return;
+    if (Math.abs(current - payload.time) < 0.35) return;
 
     addEventLog(`⏩ Jumped to ${timeStr}`, sender);
     isSyncActionInProgress = true;
     seekVideo(payload.time);
-    setTimeout(() => (isSyncActionInProgress = false), 1200);
+    setTimeout(() => (isSyncActionInProgress = false), 1000);
   }
 
   function handleRemoteHeartbeat(payload) {
@@ -928,29 +931,22 @@
     const current = getCurrentVideoTime();
     const latency = Math.max(0, (Date.now() - (payload.sentAt || Date.now())) / 1000);
     const hostExpectedTime = payload.isPlaying ? payload.time + latency : payload.time;
-    const delta = hostExpectedTime - current; // positive = behind host, negative = ahead of host
+    const delta = hostExpectedTime - current;
 
-    if (Math.abs(delta) > 2.5 && hostExpectedTime > 1.0) {
-      // Large drift: execute hard seek
-      setPlaybackRate(1.0);
-      seekVideo(hostExpectedTime);
-      if (payload.isPlaying && !isVideoPlaying()) playVideo();
-    } else if (payload.isPlaying && isVideoPlaying()) {
-      // Adaptive micro-catchup for sub-second precision without buffer stall
-      if (delta > 0.25) {
-        // Behind by 0.25s - 2.5s: speed up smoothly by 6% to catch up
-        setPlaybackRate(1.06);
-      } else if (delta < -0.25) {
-        // Ahead by 0.25s - 2.5s: slow down smoothly by 6% to let host catch up
-        setPlaybackRate(0.94);
-      } else {
-        // In exact sync (<250ms): standard 1.0x speed
-        setPlaybackRate(1.0);
+    if (payload.isPlaying) {
+      if (Math.abs(delta) > 0.6 && hostExpectedTime > 1.0) {
+        seekVideo(hostExpectedTime);
+        if (!isVideoPlaying()) playVideo();
+      } else if (!isVideoPlaying()) {
+        playVideo();
       }
     } else {
-      setPlaybackRate(1.0);
-      if (payload.isPlaying && !isVideoPlaying()) playVideo();
-      else if (!payload.isPlaying && isVideoPlaying()) pauseVideo();
+      if (Math.abs(delta) > 0.25 && hostExpectedTime > 1.0) {
+        seekVideo(hostExpectedTime);
+      }
+      if (isVideoPlaying()) {
+        pauseVideo();
+      }
     }
   }
 
@@ -1011,7 +1007,7 @@
           sentAt: Date.now(),
         },
       });
-    }, 1200);
+    }, 1000);
   }
 
   function attachLocalPlayerListeners() {

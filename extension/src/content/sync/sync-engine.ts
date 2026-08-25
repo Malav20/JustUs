@@ -353,10 +353,10 @@ export class SyncEngine {
     this.isInitialSyncCompleted = true;
     if (this.onPlaybackAction) this.onPlaybackAction("play", payload.time, senderName);
     this.withSyncLock(async () => {
-      const latency = (Date.now() - payload.sentAt) / 1000;
-      const targetTime = payload.time + (latency > 0 && latency < 2 ? latency : 0);
+      const latency = Math.max(0, (Date.now() - payload.sentAt) / 1000);
+      const targetTime = payload.time + (latency > 0 && latency < 1.5 ? latency : 0);
 
-      if (Math.abs(this.adapter.getCurrentTime() - targetTime) > CONFIG.DRIFT_THRESHOLD_SECONDS) {
+      if (targetTime > 1.0 && Math.abs(this.adapter.getCurrentTime() - targetTime) > 0.35) {
         await this.adapter.seek(targetTime);
       }
       await this.adapter.play();
@@ -370,13 +370,16 @@ export class SyncEngine {
     if (this.onPlaybackAction) this.onPlaybackAction("pause", payload.time, senderName);
     this.withSyncLock(async () => {
       await this.adapter.pause();
+      if (payload.time > 1.0 && Math.abs(this.adapter.getCurrentTime() - payload.time) > 0.25) {
+        await this.adapter.seek(payload.time);
+      }
     });
   }
 
   private handleRemoteSeek(payload: SyncPayload) {
     if (!payload || payload.time <= 1.0) return;
     const current = this.adapter.getCurrentTime();
-    if (Math.abs(current - payload.time) < 2.0) return;
+    if (Math.abs(current - payload.time) < 0.35) return;
 
     const senderName = payload.sender || "Friend";
     console.log(`[JustUs] Remote SEEK received from ${senderName} to ${payload.time.toFixed(2)}s`);
@@ -400,7 +403,7 @@ export class SyncEngine {
       }
     }
 
-    const latency = (Date.now() - payload.sentAt) / 1000;
+    const latency = Math.max(0, (Date.now() - payload.sentAt) / 1000);
     const expectedTime = payload.isPlaying ? payload.time + latency : payload.time;
     const current = this.adapter.getCurrentTime();
     const drift = Math.abs(current - expectedTime);
@@ -426,42 +429,29 @@ export class SyncEngine {
       return;
     }
 
-    // Adaptive Micro-Rate Adjustment for sub-second precision (<2.5s)
-    const delta = expectedTime - current; // positive = behind host, negative = ahead of host
-
-    if (Math.abs(delta) > CONFIG.DRIFT_THRESHOLD_SECONDS && expectedTime > 1.0) {
-      // Large drift (>2.5s): execute hard seek
-      this.adapter.setPlaybackRate(1.0);
-      const now = Date.now();
-      if (now - this.lastDriftResyncTime > 4000) {
+    const now = Date.now();
+    if (payload.isPlaying) {
+      if (drift > 0.6 && expectedTime > 1.0 && now - this.lastDriftResyncTime > 2000) {
         this.lastDriftResyncTime = now;
-        console.log(`[JustUS] Drift hard-seek (${Math.round(drift * 1000)}ms) -> Target: ${expectedTime.toFixed(2)}s`);
+        console.log(`[JustUS] Aggressive drift snap (${Math.round(drift * 1000)}ms) -> Target: ${expectedTime.toFixed(2)}s`);
         this.withSyncLock(async () => {
           await this.adapter.seek(expectedTime);
-          if (payload.isPlaying && !this.adapter.isPlaying()) {
+          if (!this.adapter.isPlaying()) {
             await this.adapter.play();
-          } else if (!payload.isPlaying && this.adapter.isPlaying()) {
+          }
+        });
+      } else if (!this.adapter.isPlaying()) {
+        this.withSyncLock(async () => { await this.adapter.play(); });
+      }
+    } else {
+      if (drift > 0.25 && expectedTime > 1.0) {
+        this.withSyncLock(async () => {
+          await this.adapter.seek(expectedTime);
+          if (this.adapter.isPlaying()) {
             await this.adapter.pause();
           }
         });
-      }
-    } else if (payload.isPlaying && this.adapter.isPlaying()) {
-      // Seamless micro-catchup without seek or buffer stall
-      if (delta > 0.25) {
-        // Behind by 0.25s - 2.5s: speed up smoothly by 6% to catch up
-        this.adapter.setPlaybackRate(1.06);
-      } else if (delta < -0.25) {
-        // Ahead by 0.25s - 2.5s: slow down smoothly by 6% to let host catch up
-        this.adapter.setPlaybackRate(0.94);
-      } else {
-        // In exact sync (<250ms): standard 1.0x speed
-        this.adapter.setPlaybackRate(1.0);
-      }
-    } else {
-      this.adapter.setPlaybackRate(1.0);
-      if (payload.isPlaying && !this.adapter.isPlaying()) {
-        this.withSyncLock(async () => { await this.adapter.play(); });
-      } else if (!payload.isPlaying && this.adapter.isPlaying()) {
+      } else if (this.adapter.isPlaying()) {
         this.withSyncLock(async () => { await this.adapter.pause(); });
       }
     }
