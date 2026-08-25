@@ -834,11 +834,6 @@
     }
     drawer.classList.remove("open");
   }
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    drawer.classList.remove("open");
-  }
 
   // ─────────────────────────────────────────────────────────────────
   // DRAGGABLE, RESIZABLE & TAP-TO-REVEAL VIDEO WINDOW HANDLERS
