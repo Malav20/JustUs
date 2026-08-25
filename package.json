@@ -1,0 +1,19 @@
+{
+  "name": "justus-watchparty",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "extension"
+  ],
+  "scripts": {
+    "dev": "npm --prefix apps/web run dev",
+    "build:web": "npm --prefix apps/web run build",
+    "build:ext": "npm --prefix extension run build",
+    "build": "npm run build:web && npm run build:ext",
+    "install:all": "npm install && npm --prefix apps/web install && npm --prefix extension install"
+  },
+  "keywords": ["watchparty", "netflix", "prime-video", "livekit", "webrtc", "supabase"],
+  "author": "Vedora Labs",
+  "license": "MIT"
+}

@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "JustUS - Watch Party + Video Call",
+  "version": "1.0.0",
+  "description": "JustUS synchronized watch party with 1-on-1 WebRTC video calling for Netflix and Amazon Prime Video.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.netflix.com/*",
+    "https://www.primevideo.com/*",
+    "https://*.amazon.com/*",
+    "https://*.amazon.co.uk/*",
+    "https://*.amazon.de/*",
+    "https://djuqnhqedykhectfhzba.supabase.co/*",
+    "wss://justus-0q7zbww8.livekit.cloud/*",
+    "http://localhost:3000/*",
+    "https://*.vercel.app/*"
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "JustUS Watch Party"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.netflix.com/*",
+        "https://www.primevideo.com/*",
+        "https://*.amazon.com/*",
+        "http://localhost:3000/sandbox*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js", "src/content/injected.js", "assets/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
