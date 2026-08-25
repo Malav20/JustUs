@@ -277,6 +277,9 @@
       pointer-events: auto !important;
       user-select: none !important;
       -webkit-user-select: none !important;
+      -webkit-touch-callout: none !important;
+      touch-action: manipulation !important;
+      -ms-touch-action: manipulation !important;
       transition: transform 0.15s ease, background 0.2s ease !important;
       opacity: 1 !important;
       visibility: visible !important;
@@ -792,9 +795,7 @@
       isDrawerOpen = true;
       drawer.classList.add("open");
       renderDrawerContent();
-    } catch (err) {
-      console.warn("[JustUS] openDrawer:", err);
-    }
+    } catch (err) {}
   }
 
   function closeDrawer(e) {
@@ -813,36 +814,43 @@
     }
   }
 
+  // Use touchstart as primary trigger — it fires BEFORE YouTube's
+  // gesture detection can intercept/consume the touch chain.
+  // preventDefault() on touchstart cancels scroll AND synthetic click,
+  // guaranteeing exactly one toggle per tap.
   let lastPartyTapTime = 0;
   function onPartyPillTap(e) {
     if (e) {
-      try { e.preventDefault(); e.stopPropagation(); } catch (err) {}
+      try { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); } catch (err) {}
     }
     const now = Date.now();
-    if (now - lastPartyTapTime < 350) return;
+    if (now - lastPartyTapTime < 400) return;
     lastPartyTapTime = now;
     toggleDrawer();
   }
 
-  partyPill.onclick = onPartyPillTap;
-  partyPill.ontouchend = onPartyPillTap;
+  partyPill.addEventListener("touchstart", onPartyPillTap, { passive: false, capture: false });
+  partyPill.addEventListener("click", onPartyPillTap);
 
   let lastVideoTapTime = 0;
   function onVideoPillTap(e) {
     if (e) {
-      try { e.preventDefault(); e.stopPropagation(); } catch (err) {}
+      try { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); } catch (err) {}
     }
     const now = Date.now();
-    if (now - lastVideoTapTime < 350) return;
+    if (now - lastVideoTapTime < 400) return;
     lastVideoTapTime = now;
     toggleVideoCallWindow();
   }
 
-  videoPill.onclick = onVideoPillTap;
-  videoPill.ontouchend = onVideoPillTap;
+  videoPill.addEventListener("touchstart", onVideoPillTap, { passive: false, capture: false });
+  videoPill.addEventListener("click", onVideoPillTap);
 
-  drawer.onclick = function (e) { e.stopPropagation(); };
-  drawer.ontouchstart = function (e) { e.stopPropagation(); };
+  // Prevent touches inside drawer from reaching YouTube's gesture handlers
+  drawer.addEventListener("touchstart", function(e) { e.stopPropagation(); }, { passive: false });
+  drawer.addEventListener("touchmove", function(e) { e.stopPropagation(); }, { passive: false });
+  drawer.addEventListener("touchend", function(e) { e.stopPropagation(); }, { passive: false });
+  drawer.addEventListener("click", function(e) { e.stopPropagation(); });
 
   // ─────────────────────────────────────────────────────────────────
   // DRAGGABLE, RESIZABLE & TAP-TO-REVEAL VIDEO WINDOW HANDLERS
@@ -1710,9 +1718,10 @@
         if (payload.videoUrl && !isHost) {
           const currentUrl = window.location.href.split("#")[0].split("?")[0];
           const targetUrl = payload.videoUrl.split("#")[0].split("?")[0];
-          if (currentUrl !== targetUrl && targetUrl.includes("/watch/")) {
+          const isVideoPage = targetUrl.includes("/watch") || targetUrl.includes("/title/") || targetUrl.includes("/video/");
+          if (currentUrl !== targetUrl && isVideoPage) {
             addEventLog(`🎬 Host opened: ${payload.title || "Selected Video"}`, payload.sender);
-            window.location.href = payload.videoUrl + "#justus=" + activeRoomId;
+            window.location.href = payload.videoUrl + (payload.videoUrl.includes("#") ? "&" : "#") + "justus=" + activeRoomId;
           }
         }
       })
@@ -2017,7 +2026,7 @@
   function checkUrlChange() {
     if (!activeRoomId || !isHost) return;
     const currentUrl = window.location.href;
-    if (currentUrl !== lastRecordedUrl && (currentUrl.includes("/watch/") || currentUrl.includes("/title/"))) {
+    if (currentUrl !== lastRecordedUrl && (currentUrl.includes("/watch") || currentUrl.includes("/title/") || currentUrl.includes("/video/"))) {
       lastRecordedUrl = currentUrl;
       fetch(`${API_BASE}/api/rooms`, {
         method: "PATCH",
