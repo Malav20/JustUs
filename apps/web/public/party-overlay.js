@@ -200,10 +200,7 @@
   }
 
   function seekVideo(timeInSeconds) {
-    if (timeInSeconds <= 1.0) return; // Do not interrupt player initialization at 00:00
-    const current = getCurrentVideoTime();
-    if (Math.abs(current - timeInSeconds) < 2.0) return; // Already in sync, avoid buffer thrashing
-
+    if (timeInSeconds < 0.5) return;
     const netflixPlayer = getNetflixPlayer();
     if (netflixPlayer && typeof netflixPlayer.seek === "function") {
       try {
@@ -212,7 +209,7 @@
       } catch (e) {}
     }
     const v = findVideoElement();
-    if (v && Math.abs(v.currentTime - timeInSeconds) > 2.5) {
+    if (v) {
       try {
         v.currentTime = timeInSeconds;
       } catch (e) {}
@@ -1938,19 +1935,29 @@
     }
 
     const current = getCurrentVideoTime();
-    const latency = Math.max(0, (Date.now() - (payload.sentAt || Date.now())) / 1000);
+    const latency = Math.max(0, Math.min(0.4, (Date.now() - (payload.sentAt || Date.now())) / 1000));
     const hostExpectedTime = payload.isPlaying ? payload.time + latency : payload.time;
     const delta = hostExpectedTime - current;
 
     if (payload.isPlaying) {
-      if (Math.abs(delta) > 0.6 && hostExpectedTime > 1.0) {
+      if (!isVideoPlaying()) playVideo();
+      if (Math.abs(delta) > 1.2 && hostExpectedTime > 0.5) {
+        // Large drift: Hard seek
         seekVideo(hostExpectedTime);
-        if (!isVideoPlaying()) playVideo();
-      } else if (!isVideoPlaying()) {
-        playVideo();
+        setPlaybackRate(1.0);
+      } else if (delta > 0.08) {
+        // Viewer is slightly behind host: smoothly speed up to eliminate drift
+        setPlaybackRate(1.08);
+      } else if (delta < -0.08) {
+        // Viewer is slightly ahead of host: smoothly slow down
+        setPlaybackRate(0.92);
+      } else {
+        // Frame-perfect sync (within 80ms)
+        setPlaybackRate(1.0);
       }
     } else {
-      if (Math.abs(delta) > 0.25 && hostExpectedTime > 1.0) {
+      setPlaybackRate(1.0);
+      if (Math.abs(delta) > 0.15 && hostExpectedTime > 0.5) {
         seekVideo(hostExpectedTime);
       }
       if (isVideoPlaying()) {
@@ -1990,9 +1997,9 @@
       }
     }
 
-    const latency = (Date.now() - (payload.sentAt || Date.now())) / 1000;
+    const latency = Math.max(0, Math.min(0.4, (Date.now() - (payload.sentAt || Date.now())) / 1000));
     const target = payload.time + (payload.isPlaying && latency > 0 && latency < 2 ? latency : 0);
-    if (target > 1.0) {
+    if (target > 0.5) {
       seekVideo(target);
     }
     if (payload.isPlaying) playVideo();
@@ -2018,7 +2025,7 @@
           sentAt: Date.now(),
         },
       });
-    }, 1000);
+    }, 500);
   }
 
   function attachLocalPlayerListeners() {

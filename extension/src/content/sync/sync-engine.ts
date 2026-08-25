@@ -459,10 +459,11 @@ export class SyncEngine {
       }
     }
 
-    const latency = Math.max(0, (Date.now() - payload.sentAt) / 1000);
+    const latency = Math.max(0, Math.min(0.4, (Date.now() - payload.sentAt) / 1000));
     const expectedTime = payload.isPlaying ? payload.time + latency : payload.time;
     const current = this.adapter.getCurrentTime();
-    const drift = Math.abs(current - expectedTime);
+    const delta = expectedTime - current;
+    const drift = Math.abs(delta);
 
     if (this.onDriftUpdate) {
       this.onDriftUpdate(Math.round(drift * 1000));
@@ -473,7 +474,7 @@ export class SyncEngine {
       this.isInitialSyncCompleted = true;
       console.log(`[JustUS] Initial room state established: ${expectedTime.toFixed(2)}s (isPlaying: ${payload.isPlaying})`);
       this.withSyncLock(async () => {
-        if (expectedTime > 1.0) {
+        if (expectedTime > 0.5) {
           await this.adapter.seek(expectedTime);
         }
         if (payload.isPlaying) {
@@ -485,22 +486,29 @@ export class SyncEngine {
       return;
     }
 
-    const now = Date.now();
     if (payload.isPlaying) {
-      if (drift > 0.6 && expectedTime > 1.0 && now - this.lastDriftResyncTime > 2000) {
-        this.lastDriftResyncTime = now;
-        console.log(`[JustUS] Aggressive drift snap (${Math.round(drift * 1000)}ms) -> Target: ${expectedTime.toFixed(2)}s`);
-        this.withSyncLock(async () => {
-          await this.adapter.seek(expectedTime);
-          if (!this.adapter.isPlaying()) {
-            await this.adapter.play();
-          }
-        });
-      } else if (!this.adapter.isPlaying()) {
+      if (!this.adapter.isPlaying()) {
         this.withSyncLock(async () => { await this.adapter.play(); });
       }
+      if (drift > 1.2 && expectedTime > 0.5) {
+        // Large drift: Hard seek
+        this.withSyncLock(async () => {
+          await this.adapter.seek(expectedTime);
+          this.adapter.setPlaybackRate(1.0);
+        });
+      } else if (delta > 0.08) {
+        // Viewer is slightly behind host: speed up seamlessly
+        this.adapter.setPlaybackRate(1.08);
+      } else if (delta < -0.08) {
+        // Viewer is slightly ahead of host: slow down seamlessly
+        this.adapter.setPlaybackRate(0.92);
+      } else {
+        // Frame-perfect sync (within 80ms)
+        this.adapter.setPlaybackRate(1.0);
+      }
     } else {
-      if (drift > 0.25 && expectedTime > 1.0) {
+      this.adapter.setPlaybackRate(1.0);
+      if (drift > 0.15 && expectedTime > 0.5) {
         this.withSyncLock(async () => {
           await this.adapter.seek(expectedTime);
           if (this.adapter.isPlaying()) {
