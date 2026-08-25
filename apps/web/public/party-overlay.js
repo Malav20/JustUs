@@ -738,20 +738,49 @@
     activeRoomId = newRoomId;
 
     loadSupabase(() => {
-      // 1. Post to Vercel Room API
+      const nowIso = new Date().toISOString();
+      const roomPayload = {
+        id: newRoomId,
+        host_id: currentUserName,
+        service: window.location.hostname.includes("prime") ? "prime" : "netflix",
+        video_url: window.location.href,
+        title: document.title || "JustUS Watch Party",
+        playback_time: 0,
+        is_playing: false,
+        created_at: nowIso,
+        updated_at: nowIso,
+      };
+
+      // 1. Direct Supabase insert
+      if (supabaseClient) {
+        supabaseClient
+          .from("rooms")
+          .upsert(roomPayload, { onConflict: "id" })
+          .then(({ error }) => {
+            if (error) {
+              console.warn("[JustUS] Direct room create warning:", error.message);
+              supabaseClient.from("rooms").insert(roomPayload).catch(() => {});
+            } else {
+              console.log("[JustUS] Room created in Supabase:", newRoomId);
+            }
+          })
+          .catch(() => {});
+      }
+
+      // 2. Post to Vercel Room API
       fetch(`${API_BASE}/api/rooms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customId: newRoomId,
-          service: window.location.hostname.includes("prime") ? "prime" : "netflix",
-          videoUrl: window.location.href,
-          title: document.title || "JustUS Watch Party",
+          service: roomPayload.service,
+          videoUrl: roomPayload.video_url,
+          title: roomPayload.title,
           hostId: currentUserName,
         }),
       }).catch(() => {});
 
-      // 2. Connect Realtime Sync
+      // 3. Connect Realtime Sync
       connectRealtimeChannel(newRoomId, true);
       addEventLog(`🎉 ${currentUserName} created the watch party!`, currentUserName);
       updatePillState();
@@ -840,17 +869,45 @@
             });
           }
 
-          // Fetch past chat messages
-          fetch(`${API_BASE}/api/chat?roomId=${encodeURIComponent(roomId)}`)
-            .then((res) => res.json())
-            .then((data) => {
-              if (data && data.messages && Array.isArray(data.messages)) {
-                data.messages.forEach((msg) => {
-                  addEventLog(msg.text, msg.sender, "chat");
-                });
-              }
-            })
-            .catch(() => {});
+          // Fetch past chat messages from Supabase directly & API fallback
+          if (supabaseClient) {
+            supabaseClient
+              .from("chat_messages")
+              .select("sender, message, created_at")
+              .eq("room_id", roomId)
+              .order("created_at", { ascending: true })
+              .limit(100)
+              .then(({ data, error }) => {
+                if (data && !error && Array.isArray(data) && data.length > 0) {
+                  data.forEach((m) => {
+                    addEventLog(m.message, m.sender, "chat");
+                  });
+                } else {
+                  fetch(`${API_BASE}/api/chat?roomId=${encodeURIComponent(roomId)}`)
+                    .then((res) => res.json())
+                    .then((data) => {
+                      if (data && data.messages && Array.isArray(data.messages)) {
+                        data.messages.forEach((msg) => {
+                          addEventLog(msg.text, msg.sender, "chat");
+                        });
+                      }
+                    })
+                    .catch(() => {});
+                }
+              })
+              .catch(() => {});
+          } else {
+            fetch(`${API_BASE}/api/chat?roomId=${encodeURIComponent(roomId)}`)
+              .then((res) => res.json())
+              .then((data) => {
+                if (data && data.messages && Array.isArray(data.messages)) {
+                  data.messages.forEach((msg) => {
+                    addEventLog(msg.text, msg.sender, "chat");
+                  });
+                }
+              })
+              .catch(() => {});
+          }
         }
       });
 
@@ -864,6 +921,19 @@
     addEventLog(text, currentUserName, "chat");
 
     if (activeRoomId) {
+      if (supabaseClient) {
+        supabaseClient
+          .from("chat_messages")
+          .insert({
+            room_id: activeRoomId,
+            sender: currentUserName,
+            message: text.trim(),
+            created_at: new Date().toISOString(),
+          })
+          .then(() => {})
+          .catch(() => {});
+      }
+
       fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

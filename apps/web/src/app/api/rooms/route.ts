@@ -88,9 +88,30 @@ export async function POST(req: NextRequest) {
       ? service
       : "generic";
 
+    const nowIso = new Date().toISOString();
     const { data, error } = await supabaseAdmin
       .from("rooms")
-      .upsert({
+      .upsert(
+        {
+          id: roomId,
+          host_id: hostId || "host_" + nanoid(6),
+          service: validService,
+          video_url: videoUrl || "",
+          title: title || "Watch Party",
+          playback_time: 0,
+          is_playing: false,
+          created_at: nowIso,
+          updated_at: nowIso,
+        },
+        { onConflict: "id" }
+      )
+      .select()
+      .single();
+
+    if (error) {
+      console.warn("Supabase rooms table insert warning:", error.message);
+      // Fallback insert attempt
+      const insertRes = await supabaseAdmin.from("rooms").insert({
         id: roomId,
         host_id: hostId || "host_" + nanoid(6),
         service: validService,
@@ -98,19 +119,20 @@ export async function POST(req: NextRequest) {
         title: title || "Watch Party",
         playback_time: 0,
         is_playing: false,
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+        created_at: nowIso,
+        updated_at: nowIso,
+      }).select().single();
 
-    if (error) {
-      console.warn("Supabase rooms table insert warning:", error.message);
+      if (insertRes.data) {
+        return NextResponse.json({ room: insertRes.data });
+      }
+
       return NextResponse.json({
         room: {
           id: roomId,
           host_id: hostId || "host_" + nanoid(6),
           service: validService,
-          video_url: videoUrl || "https://www.netflix.com/watch/80057281",
+          video_url: videoUrl || "",
           title: title || "Watch Party",
           playback_time: 0,
           is_playing: false,

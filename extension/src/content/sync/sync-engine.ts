@@ -202,19 +202,42 @@ export class SyncEngine {
       this.handleLocalEvent(event, time);
     });
 
-    // Load historical chat messages from database
-    try {
-      fetch(`${CONFIG.WEB_API_URL}/api/chat?roomId=${encodeURIComponent(this.roomId)}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && data.messages && Array.isArray(data.messages)) {
-            data.messages.forEach((msg: ChatMessage) => {
-              if (this.onChatReceived) this.onChatReceived(msg);
-            });
-          }
-        })
-        .catch(() => {});
-    } catch (e) {}
+    // Load historical chat messages directly from Supabase
+    this.supabase
+      .from("chat_messages")
+      .select("sender, message, created_at")
+      .eq("room_id", this.roomId)
+      .order("created_at", { ascending: true })
+      .limit(100)
+      .then(({ data, error }) => {
+        if (data && !error && Array.isArray(data) && data.length > 0) {
+          data.forEach((m: any) => {
+            const timeStr = m.created_at
+              ? new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "";
+            if (this.onChatReceived) {
+              this.onChatReceived({
+                sender: m.sender,
+                text: m.message,
+                time: timeStr,
+              });
+            }
+          });
+        } else {
+          // Fallback to Next.js API endpoint
+          fetch(`${CONFIG.WEB_API_URL}/api/chat?roomId=${encodeURIComponent(this.roomId)}`)
+            .then((res) => res.json())
+            .then((resData) => {
+              if (resData && resData.messages && Array.isArray(resData.messages)) {
+                resData.messages.forEach((msg: ChatMessage) => {
+                  if (this.onChatReceived) this.onChatReceived(msg);
+                });
+              }
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
   }
 
   private requestLiveStateFromPeers() {
@@ -496,7 +519,18 @@ export class SyncEngine {
       this.onChatReceived(message);
     }
 
-    // Persist chat message to database
+    // Persist chat message directly to Supabase table & API fallback
+    this.supabase
+      .from("chat_messages")
+      .insert({
+        room_id: this.roomId,
+        sender: this.userName,
+        message: text.trim(),
+        created_at: new Date().toISOString(),
+      })
+      .then(() => {})
+      .catch(() => {});
+
     fetch(`${CONFIG.WEB_API_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
