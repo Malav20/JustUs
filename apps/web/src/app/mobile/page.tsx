@@ -27,13 +27,20 @@ function DedicatedMobileContent() {
   const roomParam = searchParams?.get("room") || "";
   const userParam = searchParams?.get("user") || "";
 
-  // App & Party States
-  const [roomId, setRoomId] = useState(roomParam || "ju_" + Math.random().toString(36).substring(2, 8));
-  const [userName, setUserName] = useState(userParam || "User_" + Math.floor(Math.random() * 1000));
-  const [isPartyActive, setIsPartyActive] = useState(false);
-  const [isHost, setIsHost] = useState(true);
+  // App Navigation States
+  const [currentView, setCurrentView] = useState<"home" | "browser">("home");
+  const [selectedService, setSelectedService] = useState<"netflix" | "prime" | "youtube" | "generic">("netflix");
   const [targetUrl, setTargetUrl] = useState("https://www.netflix.com");
   const [browserUrl, setBrowserUrl] = useState("https://www.netflix.com");
+
+  // Party Session States
+  const [roomId, setRoomId] = useState(roomParam || "ju_" + Math.random().toString(36).substring(2, 8));
+  const [userName, setUserName] = useState(userParam || "User_" + Math.floor(Math.random() * 1000));
+  const [joinCodeInput, setJoinCodeInput] = useState("");
+  const [isPartyActive, setIsPartyActive] = useState(false);
+  const [isHost, setIsHost] = useState(true);
+  const [participantCount, setParticipantCount] = useState(1);
+  const [copied, setCopied] = useState(false);
 
   // Video Call HUD States
   const [isPipMinimized, setIsPipMinimized] = useState(false);
@@ -42,9 +49,7 @@ function DedicatedMobileContent() {
   const [isAudioSettingsOpen, setIsAudioSettingsOpen] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
   const [camEnabled, setCamEnabled] = useState(true);
-  const [participantCount, setParticipantCount] = useState(1);
   const [callVolume, setCallVolume] = useState(0.8);
-  const [copied, setCopied] = useState(false);
 
   // Chat & Messages
   const [chatMessages, setChatMessages] = useState<Array<{ sender: string; text: string; time: string }>>([]);
@@ -62,7 +67,6 @@ function DedicatedMobileContent() {
   const livekitRoomRef = useRef<Room | null>(null);
   const localVideoTrackRef = useRef<LocalVideoTrack | null>(null);
   const localAudioTrackRef = useRef<LocalAudioTrack | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const supabaseRef = useRef(createClient(SUPABASE_URL, SUPABASE_ANON_KEY));
   const channelRef = useRef<any>(null);
 
@@ -71,9 +75,18 @@ function DedicatedMobileContent() {
     if (roomParam) {
       setRoomId(roomParam);
       setIsHost(false);
+      setCurrentView("browser");
       startPartySession(roomParam, userName, false);
     }
   }, [roomParam]);
+
+  // Open Streaming Service
+  const openStreamingService = (service: "netflix" | "prime" | "youtube" | "generic", url: string) => {
+    setSelectedService(service);
+    setTargetUrl(url);
+    setBrowserUrl(url);
+    setCurrentView("browser");
+  };
 
   // Start / Join Party Session
   const startPartySession = async (targetRoom: string, user: string, host = true) => {
@@ -81,6 +94,7 @@ function DedicatedMobileContent() {
     setRoomId(targetRoom);
     setUserName(user);
     setIsHost(host);
+    setCurrentView("browser");
 
     // 1. Create Room in DB if host
     if (host) {
@@ -89,7 +103,7 @@ function DedicatedMobileContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customId: targetRoom,
-          service: targetUrl.includes("netflix") ? "netflix" : targetUrl.includes("prime") ? "prime" : "generic",
+          service: selectedService,
           videoUrl: targetUrl,
           title: "JustUS Watch Room",
           hostId: user,
@@ -282,118 +296,231 @@ function DedicatedMobileContent() {
 
   return (
     <div
-      className="relative w-screen h-screen bg-[#090A0F] overflow-hidden select-none flex flex-col font-sans"
+      className="relative w-screen h-screen bg-[#090A0F] overflow-hidden select-none flex flex-col font-sans text-slate-100"
       onMouseMove={handleTouchMove}
       onMouseUp={handleTouchEnd}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 1. App Top Navigation Bar */}
-      <header className="h-14 bg-[#11131E] border-b border-white/10 flex items-center justify-between px-3 z-40 shrink-0">
-        {/* Brand */}
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-red-600 to-indigo-600 flex items-center justify-center font-black text-sm text-white shadow-md">
-            JU
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* SCREEN A: HOME / STREAMING SERVICES PORTAL                   */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {currentView === "home" ? (
+        <div className="flex-1 flex flex-col justify-between p-6 overflow-y-auto max-w-lg mx-auto w-full">
+          {/* Top Bar */}
+          <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-red-600 to-indigo-600 flex items-center justify-center font-black text-white text-base shadow-lg shadow-indigo-500/30">
+                JU
+              </div>
+              <div>
+                <h1 className="font-black text-lg text-white leading-tight">JustUS</h1>
+                <p className="text-[10px] text-slate-400">Mobile Watch Party</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">
+              <span className="text-xs">👤</span>
+              <input
+                type="text"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                className="bg-transparent text-xs text-white font-medium focus:outline-none w-20 truncate"
+                placeholder="Name"
+              />
+            </div>
           </div>
-          <span className="font-bold text-xs tracking-wider text-white hidden sm:inline">JUSTUS MOBILE</span>
-        </div>
 
-        {/* Streaming Service Selector / Quick URL Input */}
-        <div className="flex items-center space-x-1.5 flex-1 max-w-md mx-2">
-          <button
-            onClick={() => { setTargetUrl("https://www.netflix.com"); setBrowserUrl("https://www.netflix.com"); }}
-            className={`px-2.5 py-1 rounded-md text-[11px] font-black tracking-tight transition-colors ${
-              targetUrl.includes("netflix") ? "bg-[#E50914] text-white" : "bg-white/5 text-slate-400 hover:text-white"
-            }`}
-          >
-            NETFLIX
-          </button>
-          <button
-            onClick={() => { setTargetUrl("https://www.primevideo.com"); setBrowserUrl("https://www.primevideo.com"); }}
-            className={`px-2.5 py-1 rounded-md text-[11px] font-black tracking-tight transition-colors ${
-              targetUrl.includes("prime") ? "bg-[#00A8E1] text-white" : "bg-white/5 text-slate-400 hover:text-white"
-            }`}
-          >
-            PRIME
-          </button>
-          <button
-            onClick={() => { setTargetUrl("https://www.youtube.com"); setBrowserUrl("https://www.youtube.com"); }}
-            className={`px-2.5 py-1 rounded-md text-[11px] font-black tracking-tight transition-colors ${
-              targetUrl.includes("youtube") ? "bg-red-600 text-white" : "bg-white/5 text-slate-400 hover:text-white"
-            }`}
-          >
-            YOUTUBE
-          </button>
-          <input
-            type="text"
-            value={browserUrl}
-            onChange={(e) => setBrowserUrl(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") setTargetUrl(browserUrl); }}
-            placeholder="Enter Video URL..."
-            className="flex-1 bg-black/40 border border-white/10 rounded-md px-2 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-indigo-500 truncate"
-          />
-        </div>
+          {/* Service Cards Grid */}
+          <div className="my-auto space-y-4 py-6">
+            <div className="text-center space-y-1">
+              <h2 className="text-xl font-bold text-white">Choose Where to Watch</h2>
+              <p className="text-xs text-slate-400">Select a streaming service to start browsing & watching</p>
+            </div>
 
-        {/* Party Action Button */}
-        <div className="flex items-center space-x-2">
-          {!isPartyActive ? (
-            <button
-              onClick={() => startPartySession(roomId, userName, true)}
-              className="px-3 py-1.5 bg-gradient-to-r from-red-600 to-indigo-600 hover:from-red-500 hover:to-indigo-500 text-white font-bold text-xs rounded-lg shadow-md transition-all active:scale-95"
-            >
-              Start Party 🎉
-            </button>
-          ) : (
-            <div className="flex items-center space-x-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* Netflix */}
               <button
-                onClick={copyInvite}
-                className="px-2.5 py-1 bg-white/10 hover:bg-white/15 border border-white/10 text-[11px] font-semibold text-slate-200 rounded-lg flex items-center gap-1 transition-colors"
+                onClick={() => openStreamingService("netflix", "https://www.netflix.com")}
+                className="p-5 rounded-2xl bg-gradient-to-br from-[#E50914]/20 to-[#12141F] border border-[#E50914]/40 hover:border-[#E50914] flex items-center justify-between text-left shadow-xl active:scale-[0.98] transition-all"
               >
-                <span>{copied ? "✓ Copied" : "🔗 Share"}</span>
+                <div>
+                  <span className="text-2xl font-black tracking-tight text-[#E50914] block">NETFLIX</span>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">Log in & stream movies</span>
+                </div>
+                <div className="w-9 h-9 rounded-xl bg-[#E50914] flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  ▶
+                </div>
               </button>
+
+              {/* Prime Video */}
               <button
-                onClick={() => setIsChatOpen(!isChatOpen)}
-                className={`p-1.5 rounded-lg border transition-colors ${
-                  isChatOpen ? "bg-indigo-600 border-indigo-500 text-white" : "bg-white/5 border-white/10 text-slate-300"
-                }`}
+                onClick={() => openStreamingService("prime", "https://www.primevideo.com")}
+                className="p-5 rounded-2xl bg-gradient-to-br from-[#00A8E1]/20 to-[#12141F] border border-[#00A8E1]/40 hover:border-[#00A8E1] flex items-center justify-between text-left shadow-xl active:scale-[0.98] transition-all"
               >
-                💬
+                <div>
+                  <span className="text-2xl font-black tracking-tight text-[#00A8E1] block">PRIME</span>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">Amazon Prime Video</span>
+                </div>
+                <div className="w-9 h-9 rounded-xl bg-[#00A8E1] flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  ▶
+                </div>
               </button>
+
+              {/* YouTube */}
               <button
-                onClick={leavePartySession}
-                className="px-2 py-1 bg-red-600/20 border border-red-500/30 text-red-300 text-[11px] font-bold rounded-lg hover:bg-red-600/30"
+                onClick={() => openStreamingService("youtube", "https://www.youtube.com")}
+                className="p-5 rounded-2xl bg-gradient-to-br from-red-600/20 to-[#12141F] border border-red-600/40 hover:border-red-600 flex items-center justify-between text-left shadow-xl active:scale-[0.98] transition-all"
               >
-                Leave
+                <div>
+                  <span className="text-2xl font-black tracking-tight text-red-500 block">YOUTUBE</span>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">Watch videos together</span>
+                </div>
+                <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  ▶
+                </div>
+              </button>
+
+              {/* Custom Video / Sandbox */}
+              <button
+                onClick={() => openStreamingService("generic", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")}
+                className="p-5 rounded-2xl bg-gradient-to-br from-indigo-600/20 to-[#12141F] border border-indigo-600/40 hover:border-indigo-500 flex items-center justify-between text-left shadow-xl active:scale-[0.98] transition-all"
+              >
+                <div>
+                  <span className="text-2xl font-black tracking-tight text-indigo-400 block">DEMO STREAM</span>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">Test interactive video</span>
+                </div>
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  🍿
+                </div>
               </button>
             </div>
-          )}
-        </div>
-      </header>
 
-      {/* 2. Embedded In-App Desktop Streaming Browser Viewport */}
-      <main className="flex-1 relative w-full h-full bg-black overflow-hidden">
-        <iframe
-          ref={iframeRef}
-          src={targetUrl}
-          allow="autoplay; encrypted-media; fullscreen; camera; microphone"
-          className="w-full h-full border-0 bg-black"
-        />
-
-        {/* Standby Banner when not inside a party */}
-        {!isPartyActive && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-[#12141F]/90 backdrop-blur-md border border-white/15 px-4 py-2 rounded-full shadow-2xl flex items-center gap-3 z-30 pointer-events-auto">
-            <span className="text-xs text-slate-300">Navigate to any video, then tap</span>
-            <button
-              onClick={() => startPartySession(roomId, userName, true)}
-              className="px-3 py-1 bg-gradient-to-r from-red-600 to-indigo-600 text-white font-bold text-xs rounded-full shadow-lg"
-            >
-              Start Party 🍿
-            </button>
+            {/* Quick Join Code Input */}
+            <div className="pt-2">
+              <div className="bg-[#12141F] border border-white/10 rounded-2xl p-3.5 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={joinCodeInput}
+                  onChange={(e) => setJoinCodeInput(e.target.value)}
+                  placeholder="Have a Room Code? (e.g. ju_abc123)"
+                  className="flex-1 bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none px-2"
+                />
+                <button
+                  onClick={() => {
+                    if (joinCodeInput.trim()) {
+                      startPartySession(joinCodeInput.trim(), userName, false);
+                    }
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-red-600 to-indigo-600 text-white font-bold text-xs rounded-xl shadow-md active:scale-95"
+                >
+                  Join Party
+                </button>
+              </div>
+            </div>
           </div>
-        )}
-      </main>
 
-      {/* 3. Floating, Draggable, Minimizable & Closeable Video Call HUD */}
+          <div className="text-center text-[10px] text-slate-500 pb-2">
+            JustUS Native App • Synchronized Playback & 1-on-1 Video
+          </div>
+        </div>
+      ) : (
+        /* ───────────────────────────────────────────────────────────── */
+        /* SCREEN B: IN-APP STREAMING BROWSER & WATCH PARTY VIEW         */
+        /* ───────────────────────────────────────────────────────────── */
+        <div className="flex-1 flex flex-col w-full h-full relative">
+          {/* In-App Browser Top Navigation Bar */}
+          <header className="h-12 bg-[#11131E] border-b border-white/10 flex items-center justify-between px-3 z-40 shrink-0 gap-2">
+            <div className="flex items-center space-x-1.5">
+              <button
+                onClick={() => setCurrentView("home")}
+                className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-slate-300 font-bold text-xs flex items-center gap-1"
+              >
+                <span>◀</span>
+                <span className="hidden sm:inline">Services</span>
+              </button>
+              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
+                selectedService === "netflix" ? "bg-[#E50914] text-white" : selectedService === "prime" ? "bg-[#00A8E1] text-white" : "bg-red-600 text-white"
+              }`}>
+                {selectedService}
+              </span>
+            </div>
+
+            {/* URL bar */}
+            <div className="flex-1 max-w-sm flex items-center bg-black/40 border border-white/10 rounded-lg px-2 py-0.5 text-[11px]">
+              <input
+                type="text"
+                value={browserUrl}
+                onChange={(e) => setBrowserUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") setTargetUrl(browserUrl); }}
+                className="flex-1 bg-transparent text-slate-300 focus:outline-none truncate"
+                placeholder="Video URL..."
+              />
+              <button onClick={() => setTargetUrl(browserUrl)} className="text-slate-400 text-xs px-1">➔</button>
+            </div>
+
+            {/* Party Actions */}
+            <div className="flex items-center space-x-1.5">
+              {!isPartyActive ? (
+                <button
+                  onClick={() => startPartySession(roomId, userName, true)}
+                  className="px-3 py-1 bg-gradient-to-r from-red-600 to-indigo-600 text-white font-bold text-xs rounded-lg shadow-md active:scale-95 animate-pulse"
+                >
+                  🎉 Start Party
+                </button>
+              ) : (
+                <div className="flex items-center space-x-1.5">
+                  <button
+                    onClick={copyInvite}
+                    className="px-2.5 py-1 bg-white/10 border border-white/10 text-[11px] font-semibold text-slate-200 rounded-lg"
+                  >
+                    {copied ? "✓ Copied" : "🔗 Share"}
+                  </button>
+                  <button
+                    onClick={() => setIsChatOpen(!isChatOpen)}
+                    className={`p-1.5 rounded-lg border text-xs ${
+                      isChatOpen ? "bg-indigo-600 border-indigo-500" : "bg-white/5 border-white/10 text-slate-300"
+                    }`}
+                  >
+                    💬
+                  </button>
+                  <button
+                    onClick={leavePartySession}
+                    className="px-2 py-1 bg-red-600/20 border border-red-500/30 text-red-300 text-[11px] font-bold rounded-lg"
+                  >
+                    Leave
+                  </button>
+                </div>
+              )}
+            </div>
+          </header>
+
+          {/* Main Embedded Streaming Frame */}
+          <main className="flex-1 relative w-full h-full bg-black overflow-hidden">
+            <iframe
+              src={targetUrl}
+              allow="autoplay; encrypted-media; fullscreen; camera; microphone"
+              className="w-full h-full border-0 bg-black"
+            />
+
+            {/* Standby Floating CTA when party not active */}
+            {!isPartyActive && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-[#12141F]/90 backdrop-blur-md border border-white/15 px-4 py-2 rounded-full shadow-2xl flex items-center gap-3 z-30 pointer-events-auto">
+                <span className="text-xs text-slate-300">Play any video, then tap</span>
+                <button
+                  onClick={() => startPartySession(roomId, userName, true)}
+                  className="px-3 py-1 bg-gradient-to-r from-red-600 to-indigo-600 text-white font-bold text-xs rounded-full shadow-lg"
+                >
+                  Start Watch Party 🍿
+                </button>
+              </div>
+            )}
+          </main>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* FLOATING DRAGGABLE 1-ON-1 VIDEO CALL HUD                     */}
+      {/* ───────────────────────────────────────────────────────────── */}
       {isPartyActive && !isPipClosed && (
         <div
           style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}
@@ -451,7 +578,7 @@ function DedicatedMobileContent() {
                 </div>
               </div>
 
-              {/* AV Controls & Audio Settings Panel */}
+              {/* AV Controls */}
               <div className="p-2 bg-black/50 flex flex-col gap-1.5">
                 <div className="flex items-center justify-around">
                   <button
@@ -480,28 +607,25 @@ function DedicatedMobileContent() {
                   </button>
                 </div>
 
-                {/* Collapsible Audio Sliders */}
                 {isAudioSettingsOpen && (
                   <div className="pt-1.5 border-t border-white/10 space-y-1 text-[10px] text-slate-300">
-                    <div>
-                      <div className="flex justify-between">
-                        <span>Friend Volume:</span>
-                        <span>{Math.round(callVolume * 100)}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={callVolume}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setCallVolume(val);
-                          if (remoteAudioRef.current) remoteAudioRef.current.volume = val;
-                        }}
-                        className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer"
-                      />
+                    <div className="flex justify-between">
+                      <span>Friend Volume:</span>
+                      <span>{Math.round(callVolume * 100)}%</span>
                     </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={callVolume}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setCallVolume(val);
+                        if (remoteAudioRef.current) remoteAudioRef.current.volume = val;
+                      }}
+                      className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                    />
                   </div>
                 )}
               </div>
@@ -510,7 +634,7 @@ function DedicatedMobileContent() {
         </div>
       )}
 
-      {/* Reopen Video Call Button if closed */}
+      {/* Restore Video Call Button if Closed */}
       {isPartyActive && isPipClosed && (
         <button
           onClick={() => setIsPipClosed(false)}
@@ -520,9 +644,9 @@ function DedicatedMobileContent() {
         </button>
       )}
 
-      {/* 4. Slide-Out Real-Time Chat Drawer */}
+      {/* Slide-Out Chat Drawer */}
       {isPartyActive && isChatOpen && (
-        <aside className="absolute top-14 right-0 bottom-0 w-72 bg-[#0E101D]/95 backdrop-blur-xl border-l border-white/10 z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
+        <aside className="absolute top-12 right-0 bottom-0 w-72 bg-[#0E101D]/95 backdrop-blur-xl border-l border-white/10 z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
           <div className="h-10 border-b border-white/10 px-3 flex items-center justify-between">
             <span className="font-bold text-xs text-white">Party Chat ({roomId})</span>
             <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-white text-sm">
