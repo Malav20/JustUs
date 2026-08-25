@@ -5,11 +5,13 @@ import WebKit
 class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     private var floatingHubButton: UIButton?
 
+    private let safariDesktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
+
     override func viewDidLoad() {
         super.viewDidLoad()
         
         if let webView = self.webView {
-            webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            webView.customUserAgent = safariDesktopUserAgent
             webView.configuration.allowsInlineMediaPlayback = true
             webView.configuration.allowsAirPlayForMediaPlayback = true
             webView.configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
@@ -35,7 +37,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
            let url = URL(string: urlString) {
             DispatchQueue.main.async {
                 var request = URLRequest(url: url)
-                request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+                request.setValue(self.safariDesktopUserAgent, forHTTPHeaderField: "User-Agent")
                 self.webView?.load(request)
             }
         }
