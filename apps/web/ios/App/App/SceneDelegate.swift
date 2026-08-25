@@ -135,6 +135,17 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
         }
     }
     
+    private var cachedOverlayScript: String?
+
+    private func getOverlayScript() -> String? {
+        if let cached = cachedOverlayScript { return cached }
+        if let path = Bundle.main.path(forResource: "party-overlay", ofType: "js", inDirectory: "public") ?? Bundle.main.path(forResource: "party-overlay", ofType: "js") {
+            cachedOverlayScript = try? String(contentsOfFile: path, encoding: .utf8)
+            return cachedOverlayScript
+        }
+        return nil
+    }
+
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         if keyPath == #keyPath(WKWebView.url), let webView = self.webView, let currentUrl = webView.url {
             let urlString = currentUrl.absoluteString
@@ -145,15 +156,21 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
                 if isExternal, let btn = self.floatingHubButton {
                     self.view.bringSubviewToFront(btn)
                     
-                    let injectionCode = """
-                    (function() {
-                        if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) return;
-                        var s = document.createElement('script');
-                        s.src = 'https://just-us-web.vercel.app/party-overlay.js?t=' + Date.now();
-                        (document.head || document.documentElement).appendChild(s);
-                    })();
-                    """
-                    webView.evaluateJavaScript(injectionCode, completionHandler: nil)
+                    if let script = self.getOverlayScript() {
+                        webView.evaluateJavaScript(script, completionHandler: nil)
+                    } else {
+                        let injectionCode = """
+                        (function() {
+                            if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) return;
+                            fetch('https://just-us-web.vercel.app/party-overlay.js?t=' + Date.now()).then(r => r.text()).then(code => eval(code)).catch(() => {
+                                var s = document.createElement('script');
+                                s.src = 'https://just-us-web.vercel.app/party-overlay.js?t=' + Date.now();
+                                (document.head || document.documentElement).appendChild(s);
+                            });
+                        })();
+                        """
+                        webView.evaluateJavaScript(injectionCode, completionHandler: nil)
+                    }
                 }
             }
         }
