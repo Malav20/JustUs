@@ -784,24 +784,25 @@
   window.addEventListener("load", ensureOverlayMounted);
   setInterval(ensureOverlayMounted, 400);
 
-  // Party Pill Tap Handlers
+  // Party Pill Tap Handlers (Capture-phase to bypass YouTube SPA gesture interception)
   let lastPillToggleTimestamp = 0;
   let lastVideoToggleTimestamp = 0;
 
-  drawer.addEventListener("pointerdown", (e) => e.stopPropagation());
-  drawer.addEventListener("pointerup", (e) => e.stopPropagation());
-  drawer.addEventListener("touchstart", (e) => e.stopPropagation());
-  drawer.addEventListener("touchmove", (e) => e.stopPropagation());
-  drawer.addEventListener("touchend", (e) => e.stopPropagation());
-  drawer.addEventListener("click", (e) => e.stopPropagation());
+  drawer.addEventListener("pointerdown", (e) => e.stopPropagation(), true);
+  drawer.addEventListener("pointerup", (e) => e.stopPropagation(), true);
+  drawer.addEventListener("touchstart", (e) => e.stopPropagation(), true);
+  drawer.addEventListener("touchmove", (e) => e.stopPropagation(), true);
+  drawer.addEventListener("touchend", (e) => e.stopPropagation(), true);
+  drawer.addEventListener("click", (e) => e.stopPropagation(), true);
 
   function handlePartyPillTap(e) {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
+      try { e.stopImmediatePropagation(); } catch(err) {}
     }
     const now = Date.now();
-    if (now - lastPillToggleTimestamp < 450) return;
+    if (now - lastPillToggleTimestamp < 350) return;
     lastPillToggleTimestamp = now;
 
     if (drawer.classList.contains("open")) {
@@ -812,22 +813,29 @@
     }
   }
 
-  partyPill.addEventListener("pointerup", handlePartyPillTap);
-  partyPill.addEventListener("click", handlePartyPillTap);
+  partyPill.addEventListener("pointerdown", (e) => { e.stopPropagation(); }, true);
+  partyPill.addEventListener("touchstart", (e) => { e.stopPropagation(); }, true);
+  partyPill.addEventListener("pointerup", handlePartyPillTap, true);
+  partyPill.addEventListener("touchend", handlePartyPillTap, true);
+  partyPill.addEventListener("click", handlePartyPillTap, true);
 
   function handleVideoPillTap(e) {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
+      try { e.stopImmediatePropagation(); } catch(err) {}
     }
     const now = Date.now();
-    if (now - lastVideoToggleTimestamp < 450) return;
+    if (now - lastVideoToggleTimestamp < 350) return;
     lastVideoToggleTimestamp = now;
     toggleVideoCallWindow();
   }
 
-  videoPill.addEventListener("pointerup", handleVideoPillTap);
-  videoPill.addEventListener("click", handleVideoPillTap);
+  videoPill.addEventListener("pointerdown", (e) => { e.stopPropagation(); }, true);
+  videoPill.addEventListener("touchstart", (e) => { e.stopPropagation(); }, true);
+  videoPill.addEventListener("pointerup", handleVideoPillTap, true);
+  videoPill.addEventListener("touchend", handleVideoPillTap, true);
+  videoPill.addEventListener("click", handleVideoPillTap, true);
 
   function closeDrawer(e) {
     if (e) {
@@ -1598,7 +1606,11 @@
       const roomPayload = {
         id: newRoomId,
         host_id: currentUserName,
-        service: window.location.hostname.includes("prime") ? "prime" : "netflix",
+        service: window.location.hostname.includes("prime")
+          ? "prime"
+          : window.location.hostname.includes("youtube") || window.location.hostname.includes("youtu.be")
+          ? "youtube"
+          : "netflix",
         video_url: window.location.href,
         title: document.title || "JustUS Watch Party",
         playback_time: 0,
