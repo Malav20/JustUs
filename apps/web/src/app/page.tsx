@@ -1,8 +1,24 @@
-﻿"use client";
+"use client";
 
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { MobileWatchParty } from "@/components/MobileWatchParty";
 
-export default function HomePage() {
+function LandingPageContent() {
+  const [isMobileOrApp, setIsMobileOrApp] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.() || !!(window as any).Capacitor;
+      const isTouch = navigator.maxTouchPoints > 0 || /iPad|iPhone|iPod|Android/i.test(navigator.userAgent);
+      setIsMobileOrApp(isCapacitor || isTouch);
+    }
+  }, []);
+
+  if (isMobileOrApp) {
+    return <MobileWatchParty />;
+  }
+
   return (
     <div className="relative min-h-screen bg-[#090A0F] text-slate-100 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
       {/* Background glow effects */}
@@ -23,6 +39,12 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center space-x-3">
+            <Link
+              href="/mobile"
+              className="text-xs font-semibold px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 border border-white/10 transition-all"
+            >
+              Launch Web App
+            </Link>
             <a
               href="#platforms"
               className="text-xs font-semibold px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-indigo-600 hover:from-red-500 hover:to-indigo-500 text-white shadow-md shadow-indigo-600/25 transition-all"
@@ -223,5 +245,13 @@ export default function HomePage() {
         <p>JustUS — Synchronized Watch Party with 1-on-1 Video Calling</p>
       </footer>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#090A0F] text-white flex items-center justify-center text-sm font-bold">Loading JustUS...</div>}>
+      <LandingPageContent />
+    </Suspense>
   );
 }
