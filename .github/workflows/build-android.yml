@@ -38,6 +38,7 @@ jobs:
           NEXT_PUBLIC_APP_URL: "https://just-us-web.vercel.app"
         run: |
           cd apps/web
+          mkdir -p out android/app/src/main/assets
           npm run build
           npx --yes @capacitor/cli sync android
 

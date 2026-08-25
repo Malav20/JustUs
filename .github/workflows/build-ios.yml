@@ -32,13 +32,14 @@ jobs:
           NEXT_PUBLIC_APP_URL: "https://just-us-web.vercel.app"
         run: |
           cd apps/web
+          mkdir -p out ios/App/App/public
           npm run build
           npx --yes @capacitor/cli sync ios
 
       - name: Build Unsigned iOS IPA
         run: |
           cd apps/web/ios/App
-          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath App.xcarchive archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath App.xcarchive archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
           mkdir -p Payload
           cp -r App.xcarchive/Products/Applications/App.app Payload/
           zip -r JustUS.ipa Payload/
