@@ -295,113 +295,64 @@
       100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
 
-    /* Floating Draggable & Resizable Video Call Window */
+    /* Ultra-Sleek Floating Video-First PIP Window */
     .video-call-window {
       position: fixed;
       top: 65px;
       right: 20px;
-      width: 280px;
-      height: 215px;
-      min-width: 180px;
-      min-height: 140px;
-      max-width: 92vw;
-      max-height: 85vh;
-      background: rgba(14, 16, 26, 0.96);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.18);
+      width: 220px;
+      height: 165px;
+      min-width: 150px;
+      min-height: 110px;
+      max-width: 85vw;
+      max-height: 80vh;
       border-radius: 18px;
-      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.75);
-      display: flex;
-      flex-direction: column;
+      background: #090A10;
+      border: 1.5px solid rgba(255, 255, 255, 0.22);
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.85);
       overflow: hidden;
       z-index: 2147483645;
       pointer-events: auto;
       user-select: none;
       -webkit-user-select: none;
       touch-action: none;
-      transition: opacity 0.2s ease;
+      transition: box-shadow 0.2s ease;
     }
     .video-call-window.hidden {
       display: none !important;
     }
 
-    .video-header {
-      padding: 8px 12px;
-      background: rgba(255, 255, 255, 0.05);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      cursor: move;
-      touch-action: none;
-    }
-    .video-header-title {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 11px;
-      font-weight: 700;
-      color: #fff;
-    }
-    .video-header-actions {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .video-icon-btn {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #94A3B8;
-      width: 22px;
-      height: 22px;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-    .video-icon-btn.close:hover {
-      background: rgba(239, 68, 68, 0.2);
-      color: #EF4444;
-    }
-
-    .video-body {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
+    .video-canvas {
       position: relative;
-      background: #000;
-      overflow: hidden;
-    }
-    .remote-feed-container {
-      position: relative;
-      flex: 1;
       width: 100%;
       height: 100%;
-      background: #090A10;
+      background: #000;
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
     }
+
     .remote-video-feed {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      display: block;
+      background: #090A10;
     }
+
     .local-video-pip {
       position: absolute;
       bottom: 8px;
       right: 8px;
-      width: 70px;
-      height: 52px;
+      width: 58px;
+      height: 44px;
       border-radius: 8px;
-      border: 1.5px solid rgba(255, 255, 255, 0.4);
+      border: 1.5px solid rgba(255, 255, 255, 0.5);
       object-fit: cover;
       transform: scaleX(-1);
       background: #181A26;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.85);
       z-index: 2;
     }
     .local-video-pip.hidden {
@@ -415,73 +366,105 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 6px;
       background: #0d0f18;
       color: #94A3B8;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
       z-index: 1;
-      padding: 10px;
+      padding: 8px;
       text-align: center;
     }
     .video-waiting-overlay.hidden {
       display: none !important;
     }
     .waiting-pulse {
-      width: 14px;
-      height: 14px;
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
       background: #6366F1;
       animation: pulseRing 1.8s infinite;
     }
 
-    .video-control-bar {
-      padding: 6px 10px;
-      background: rgba(18, 20, 31, 0.95);
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    /* Tap-to-Reveal Controls Overlay */
+    .video-controls-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, transparent 40%, transparent 60%, rgba(0,0,0,0.85) 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 6px;
+      z-index: 4;
+      opacity: 1;
+      transition: opacity 0.25s ease;
+      pointer-events: auto;
+    }
+    .video-controls-overlay.hidden {
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    .overlay-close-btn {
+      align-self: flex-end;
+      width: 22px;
+      height: 22px;
+      border-radius: 11px;
+      background: rgba(0, 0, 0, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      font-size: 11px;
       display: flex;
       align-items: center;
-      justify-content: space-around;
-      z-index: 3;
+      justify-content: center;
+      cursor: pointer;
     }
+
+    .video-control-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding-bottom: 2px;
+    }
+
     .call-ctrl-btn {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      width: 28px;
+      height: 28px;
+      border-radius: 14px;
+      background: rgba(0, 0, 0, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.25);
       color: #fff;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      transition: background 0.15s, transform 0.1s;
+      backdrop-filter: blur(8px);
+      transition: transform 0.1s;
     }
     .call-ctrl-btn:active { transform: scale(0.92); }
     .call-ctrl-btn.off {
-      background: rgba(239, 68, 68, 0.25);
-      color: #EF4444;
+      background: rgba(239, 68, 68, 0.7);
       border-color: #EF4444;
     }
     .call-ctrl-btn.end-call {
       background: #EF4444;
       border-color: #DC2626;
-      color: #fff;
     }
 
     .video-resize-handle {
       position: absolute;
       bottom: 0;
       right: 0;
-      width: 22px;
-      height: 22px;
+      width: 20px;
+      height: 20px;
       cursor: nwse-resize;
       display: flex;
       align-items: flex-end;
       justify-content: flex-end;
-      padding: 3px;
+      padding: 2px;
       touch-action: none;
-      z-index: 10;
+      z-index: 5;
     }
 
     .drawer-overlay {
@@ -715,51 +698,42 @@
   const partyPill = shadow.getElementById("ju-party-pill");
   const videoPill = shadow.getElementById("ju-video-pill");
 
-  // Floating Draggable & Resizable Video Window
+  // Floating Draggable & Resizable Video-First PIP Window
   const videoWindow = document.createElement("div");
   videoWindow.className = "video-call-window hidden";
   videoWindow.id = "ju-video-window";
   videoWindow.innerHTML = `
-    <div class="video-header" id="ju-video-drag-handle">
-      <div class="video-header-title">
-        <span class="status-dot idle" id="ju-call-status-dot"></span>
-        <span id="ju-call-title">1-on-1 Video Call</span>
+    <div class="video-canvas" id="ju-video-canvas">
+      <div class="video-waiting-overlay" id="ju-video-waiting">
+        <div class="waiting-pulse"></div>
+        <span id="ju-waiting-text">Connecting video call...</span>
       </div>
-      <div class="video-header-actions">
-        <button class="video-icon-btn" id="ju-btn-min-call" title="Minimize">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </button>
-        <button class="video-icon-btn close" id="ju-btn-close-call" title="Close">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-    </div>
-    <div class="video-body">
-      <div class="remote-feed-container">
-        <div class="video-waiting-overlay" id="ju-video-waiting">
-          <div class="waiting-pulse"></div>
-          <span id="ju-waiting-text">Waiting for friend to join call...</span>
+      <video class="remote-video-feed" id="ju-remote-video" autoplay playsinline></video>
+      <video class="local-video-pip hidden" id="ju-local-video" autoplay playsinline muted></video>
+
+      <!-- Tap-to-Reveal Controls Overlay -->
+      <div class="video-controls-overlay hidden" id="ju-video-controls">
+        <button class="overlay-close-btn" id="ju-btn-close-call" title="Close">✕</button>
+        <div class="video-control-bar">
+          <button class="call-ctrl-btn" id="ju-btn-mic" title="Mute/Unmute Mic">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+          </button>
+          <button class="call-ctrl-btn" id="ju-btn-cam" title="Camera On/Off">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+          </button>
+          <button class="call-ctrl-btn" id="ju-btn-flip" title="Flip Camera">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          </button>
+          <button class="call-ctrl-btn end-call" id="ju-btn-hangup" title="End Call">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/></svg>
+          </button>
         </div>
-        <video class="remote-video-feed" id="ju-remote-video" autoplay playsinline></video>
-        <video class="local-video-pip hidden" id="ju-local-video" autoplay playsinline muted></video>
       </div>
-      <div class="video-control-bar">
-        <button class="call-ctrl-btn" id="ju-btn-mic" title="Mute/Unmute Mic">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-        </button>
-        <button class="call-ctrl-btn" id="ju-btn-cam" title="Camera On/Off">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
-        </button>
-        <button class="call-ctrl-btn" id="ju-btn-flip" title="Flip Camera">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-        </button>
-        <button class="call-ctrl-btn end-call" id="ju-btn-hangup" title="End Call">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/></svg>
-        </button>
+
+      <!-- Resize Grip -->
+      <div class="video-resize-handle" id="ju-video-resize-handle" title="Drag to resize">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="3"><line x1="22" y1="2" x2="2" y2="22"/><line x1="22" y1="12" x2="12" y2="22"/></svg>
       </div>
-    </div>
-    <div class="video-resize-handle" id="ju-video-resize-handle" title="Drag to resize">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="3"><line x1="22" y1="2" x2="2" y2="22"/><line x1="22" y1="12" x2="12" y2="22"/></svg>
     </div>
   `;
   shadow.appendChild(videoWindow);
@@ -780,8 +754,6 @@
   drawer.addEventListener("touchmove", (e) => e.stopPropagation());
   drawer.addEventListener("touchend", (e) => e.stopPropagation());
   drawer.addEventListener("click", (e) => e.stopPropagation());
-
-  videoWindow.addEventListener("click", (e) => e.stopPropagation());
 
   partyPill.addEventListener("touchstart", (e) => {
     isDraggingPartyPill = false;
@@ -847,18 +819,40 @@
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // DRAGGABLE & RESIZABLE VIDEO WINDOW HANDLERS
+  // DRAGGABLE, RESIZABLE & TAP-TO-REVEAL VIDEO WINDOW HANDLERS
   // ─────────────────────────────────────────────────────────────────
-  const dragHandle = shadow.getElementById("ju-video-drag-handle");
+  const videoCanvas = shadow.getElementById("ju-video-canvas");
   const resizeHandle = shadow.getElementById("ju-video-resize-handle");
+  const videoControls = shadow.getElementById("ju-video-controls");
   
   let isDraggingWindow = false;
+  let hasMovedWindow = false;
   let dragWindowStartX = 0, dragWindowStartY = 0;
   let winStartLeft = 0, winStartTop = 0;
+  let controlsHideTimeout = null;
+
+  function toggleControlsOverlay() {
+    if (!videoControls) return;
+    if (videoControls.classList.contains("hidden")) {
+      videoControls.classList.remove("hidden");
+      resetControlsHideTimer();
+    } else {
+      videoControls.classList.add("hidden");
+      if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
+    }
+  }
+
+  function resetControlsHideTimer() {
+    if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
+    controlsHideTimeout = setTimeout(() => {
+      if (videoControls) videoControls.classList.add("hidden");
+    }, 3500);
+  }
 
   function onWindowDragStart(e) {
-    if (e.target.closest("button")) return;
+    if (e.target.closest("button") || e.target.closest(".video-resize-handle")) return;
     isDraggingWindow = true;
+    hasMovedWindow = false;
     const touch = e.touches ? e.touches[0] : e;
     dragWindowStartX = touch.clientX;
     dragWindowStartY = touch.clientY;
@@ -873,6 +867,10 @@
     const deltaX = touch.clientX - dragWindowStartX;
     const deltaY = touch.clientY - dragWindowStartY;
 
+    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+      hasMovedWindow = true;
+    }
+
     let newLeft = winStartLeft + deltaX;
     let newTop = winStartTop + deltaY;
 
@@ -886,14 +884,19 @@
     videoWindow.style.right = "auto";
   }
 
-  function onWindowDragEnd() {
+  function onWindowDragEnd(e) {
+    if (!isDraggingWindow) return;
     isDraggingWindow = false;
+    if (!hasMovedWindow) {
+      // If user tapped without dragging, toggle the control buttons overlay
+      toggleControlsOverlay();
+    }
   }
 
-  dragHandle.addEventListener("touchstart", onWindowDragStart, { passive: true });
+  videoCanvas.addEventListener("touchstart", onWindowDragStart, { passive: true });
   window.addEventListener("touchmove", onWindowDragMove, { passive: true });
   window.addEventListener("touchend", onWindowDragEnd, { passive: true });
-  dragHandle.addEventListener("mousedown", onWindowDragStart);
+  videoCanvas.addEventListener("mousedown", onWindowDragStart);
   window.addEventListener("mousemove", onWindowDragMove);
   window.addEventListener("mouseup", onWindowDragEnd);
 
@@ -922,8 +925,8 @@
     const maxWidth = window.innerWidth - rect.left - 10;
     const maxHeight = window.innerHeight - rect.top - 10;
 
-    const newWidth = Math.max(180, Math.min(maxWidth, startWinWidth + deltaX));
-    const newHeight = Math.max(140, Math.min(maxHeight, startWinHeight + deltaY));
+    const newWidth = Math.max(150, Math.min(maxWidth, startWinWidth + deltaX));
+    const newHeight = Math.max(110, Math.min(maxHeight, startWinHeight + deltaY));
 
     videoWindow.style.width = `${newWidth}px`;
     videoWindow.style.height = `${newHeight}px`;
@@ -939,20 +942,30 @@
   resizeHandle.addEventListener("mousedown", onWindowResizeStart);
 
   // Video Window Controls
-  shadow.getElementById("ju-btn-min-call")?.addEventListener("click", () => {
+  shadow.getElementById("ju-btn-close-call")?.addEventListener("click", (e) => {
+    e.stopPropagation();
     videoWindow.classList.add("hidden");
   });
-  shadow.getElementById("ju-btn-close-call")?.addEventListener("click", () => {
+  shadow.getElementById("ju-btn-hangup")?.addEventListener("click", (e) => {
+    e.stopPropagation();
     leaveLiveKitCall();
     videoWindow.classList.add("hidden");
   });
-  shadow.getElementById("ju-btn-hangup")?.addEventListener("click", () => {
-    leaveLiveKitCall();
-    videoWindow.classList.add("hidden");
+  shadow.getElementById("ju-btn-mic")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    resetControlsHideTimer();
+    toggleMic();
   });
-  shadow.getElementById("ju-btn-mic")?.addEventListener("click", () => toggleMic());
-  shadow.getElementById("ju-btn-cam")?.addEventListener("click", () => toggleCam());
-  shadow.getElementById("ju-btn-flip")?.addEventListener("click", () => flipCamera());
+  shadow.getElementById("ju-btn-cam")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    resetControlsHideTimer();
+    toggleCam();
+  });
+  shadow.getElementById("ju-btn-flip")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    resetControlsHideTimer();
+    flipCamera();
+  });
 
   // ─────────────────────────────────────────────────────────────────
   // LIVEKIT WEBRTC VIDEO CALLING LOGIC
@@ -993,6 +1006,7 @@
 
     if (videoWindow.classList.contains("hidden")) {
       videoWindow.classList.remove("hidden");
+      toggleControlsOverlay();
       if (!livekitRoom && !isLiveKitConnecting) {
         connectLiveKitCall();
       }
@@ -1005,7 +1019,7 @@
     if (!activeRoomId || isLiveKitConnecting) return;
     isLiveKitConnecting = true;
     const waitingText = shadow.getElementById("ju-waiting-text");
-    if (waitingText) waitingText.textContent = "Connecting to call...";
+    if (waitingText) waitingText.textContent = "Connecting video call...";
 
     loadLiveKitSDK(async () => {
       try {
@@ -1020,14 +1034,11 @@
           }),
         });
         const { token, wsUrl } = await res.json();
-        if (!token) throw new Error("No token received");
+        if (!token) throw new Error("No token received from server");
 
         const room = new window.LivekitClient.Room({
           adaptiveStream: true,
           dynacast: true,
-          videoCaptureDefaults: {
-            resolution: window.LivekitClient.VideoPresets.h360.resolution,
-          },
         });
         livekitRoom = room;
 
@@ -1061,7 +1072,7 @@
           if (waitingOverlay) {
             waitingOverlay.classList.remove("hidden");
             const wt = shadow.getElementById("ju-waiting-text");
-            if (wt) wt.textContent = "Friend left video call";
+            if (wt) wt.textContent = "Friend left call";
           }
         });
 
@@ -1089,8 +1100,7 @@
         // 2. Front/User Camera track
         try {
           localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
-            facingMode: currentFacingMode,
-            resolution: { width: 480, height: 360, frameRate: 24 },
+            facingMode: currentFacingMode || "user",
           });
           const localVideoEl = shadow.getElementById("ju-local-video");
           if (localVideoEl) {
