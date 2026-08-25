@@ -58,9 +58,8 @@
           handled = true;
         } catch (e) {}
       }
-      if (!handled && video && video.paused) {
-        video.play().catch(function () {});
-        var playBtn = document.querySelector("button[data-uia='control-play-pause']");
+      if (!handled) {
+        var playBtn = document.querySelector("button[data-uia='control-play-pause'], .button-nfplayerPlay");
         if (playBtn) playBtn.click();
       }
       respond(requestId, { success: true });
@@ -72,10 +71,9 @@
           handled = true;
         } catch (e) {}
       }
-      if (!handled && video && !video.paused) {
-        video.pause();
-        var playBtn = document.querySelector("button[data-uia='control-play-pause']");
-        if (playBtn) playBtn.click();
+      if (!handled) {
+        var pauseBtn = document.querySelector("button[data-uia='control-play-pause'], .button-nfplayerPause");
+        if (pauseBtn) pauseBtn.click();
       }
       respond(requestId, { success: true });
     } else if (action === "NETFLIX_GET_STATE") {

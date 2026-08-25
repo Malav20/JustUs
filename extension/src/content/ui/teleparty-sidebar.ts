@@ -151,6 +151,7 @@ export class TelepartySidebarUI {
 
       room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, pub, participant: RemoteParticipant) => {
         if (track.kind === Track.Kind.Video && this.remoteVideoEl) {
+          if (this.videoCallBoxEl) this.videoCallBoxEl.classList.remove("hidden");
           track.attach(this.remoteVideoEl);
           const waitingOverlay = this.shadow?.getElementById("waiting-overlay");
           if (waitingOverlay) waitingOverlay.classList.add("hidden");
@@ -449,6 +450,9 @@ export class TelepartySidebarUI {
           background: #0D0E15;
           border-bottom: 1px solid #232738;
           position: relative;
+        }
+        .tp-video-box.hidden {
+          display: none !important;
         }
 
         .tp-video-canvas {
@@ -782,6 +786,10 @@ export class TelepartySidebarUI {
               <span id="tp-participant-count">1</span>
             </div>
 
+            <button class="tp-btn-icon" id="btn-toggle-video-call" title="Toggle Video Call">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+            </button>
+
             <button class="tp-btn-icon" id="btn-share-link" title="Copy Invite Link">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>
             </button>
@@ -796,8 +804,8 @@ export class TelepartySidebarUI {
           </div>
         </div>
 
-        <!-- 1-on-1 Video Call Panel -->
-        <div class="tp-video-box" id="tp-video-box-panel">
+        <!-- 1-on-1 Video Call Panel (Hidden by default) -->
+        <div class="tp-video-box hidden" id="tp-video-box-panel">
           <div class="tp-video-canvas">
             <div class="tp-waiting-overlay" id="waiting-overlay">
               <div class="tp-pulse-ring"></div>
@@ -883,7 +891,20 @@ export class TelepartySidebarUI {
     const collapseBtn = this.shadow.getElementById("btn-collapse");
     const shareBtn = this.shadow.getElementById("btn-share-link");
     const leaveBtn = this.shadow.getElementById("btn-leave-party");
+    const toggleVideoCallBtn = this.shadow.getElementById("btn-toggle-video-call");
     const micBtn = this.shadow.getElementById("btn-mic");
+
+    // Video call toggle button
+    toggleVideoCallBtn?.addEventListener("click", () => {
+      this.isVideoCallOpen = !this.isVideoCallOpen;
+      if (this.videoCallBoxEl) {
+        this.videoCallBoxEl.classList.toggle("hidden", !this.isVideoCallOpen);
+      }
+      toggleVideoCallBtn.classList.toggle("active", this.isVideoCallOpen);
+      if (this.isVideoCallOpen && !this.livekitRoom) {
+        this.connectWebRTC(this.roomId, this.userName, this.isHost);
+      }
+    });
     const camBtn = this.shadow.getElementById("btn-cam");
     const audioSettingsBtn = this.shadow.getElementById("btn-audio-settings");
     const audioPanel = this.shadow.getElementById("tp-audio-panel");

@@ -107,7 +107,7 @@ export function startPartySession(session: RoomSession) {
     },
   });
 
-  // 5. Initialize Player Adapter and WebRTC in background
+  // 5. Initialize Player Adapter and SyncEngine
   adapter.init().then((success) => {
     if (success) {
       console.log("[JustUS] Player hook active!");
@@ -116,9 +116,6 @@ export function startPartySession(session: RoomSession) {
       console.log("[JustUS] Video element standing by on page...");
     }
   });
-
-  // 6. Connect WebRTC video call
-  sidebarUI.connectWebRTC(session.roomId, session.userName || "Host", session.isHost);
 }
 
 function stopPartySession() {

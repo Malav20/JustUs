@@ -97,16 +97,10 @@ export class NetflixAdapter implements IPlayerAdapter {
 
   async play(): Promise<void> {
     await this.callBridge("NETFLIX_PLAY");
-    if (this.videoEl && this.videoEl.paused) {
-      await this.videoEl.play().catch(() => {});
-    }
   }
 
   async pause(): Promise<void> {
     await this.callBridge("NETFLIX_PAUSE");
-    if (this.videoEl && !this.videoEl.paused) {
-      this.videoEl.pause();
-    }
   }
 
   async seek(timeInSeconds: number): Promise<void> {
@@ -138,11 +132,7 @@ export class NetflixAdapter implements IPlayerAdapter {
   }
 
   setPlaybackRate(rate: number): void {
-    if (this.videoEl) {
-      try {
-        this.videoEl.playbackRate = rate;
-      } catch (e) {}
-    }
+    // Intentionally no-op on Netflix to protect Widevine DRM hardware decoding pipeline from black screen drops
   }
 
   getPlaybackRate(): number {

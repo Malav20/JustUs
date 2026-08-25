@@ -201,6 +201,20 @@ export class SyncEngine {
     this.adapter.onStateChange((event: PlayerEventType, time: number) => {
       this.handleLocalEvent(event, time);
     });
+
+    // Load historical chat messages from database
+    try {
+      fetch(`${CONFIG.WEB_API_URL}/api/chat?roomId=${encodeURIComponent(this.roomId)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.messages && Array.isArray(data.messages)) {
+            data.messages.forEach((msg: ChatMessage) => {
+              if (this.onChatReceived) this.onChatReceived(msg);
+            });
+          }
+        })
+        .catch(() => {});
+    } catch (e) {}
   }
 
   private requestLiveStateFromPeers() {
@@ -491,6 +505,17 @@ export class SyncEngine {
     if (this.onChatReceived) {
       this.onChatReceived(message);
     }
+
+    // Persist chat message to database
+    fetch(`${CONFIG.WEB_API_URL}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomId: this.roomId,
+        sender: this.userName,
+        text: text.trim(),
+      }),
+    }).catch(() => {});
   }
 
   private handleVideoChanged(payload: { videoUrl?: string; title?: string; sender?: string }) {

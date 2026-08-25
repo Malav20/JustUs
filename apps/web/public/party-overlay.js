@@ -839,6 +839,18 @@
               payload: { sender: currentUserName, sentAt: Date.now() },
             });
           }
+
+          // Fetch past chat messages
+          fetch(`${API_BASE}/api/chat?roomId=${encodeURIComponent(roomId)}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data && data.messages && Array.isArray(data.messages)) {
+                data.messages.forEach((msg) => {
+                  addEventLog(msg.text, msg.sender, "chat");
+                });
+              }
+            })
+            .catch(() => {});
         }
       });
 
@@ -850,6 +862,18 @@
     const payload = { sender: currentUserName, text, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) };
     activeChannel.send({ type: "broadcast", event: "CHAT", payload });
     addEventLog(text, currentUserName, "chat");
+
+    if (activeRoomId) {
+      fetch(`${API_BASE}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId: activeRoomId,
+          sender: currentUserName,
+          text,
+        }),
+      }).catch(() => {});
+    }
   }
 
   function handleRemotePlay(payload) {
