@@ -81,6 +81,12 @@ public class MainActivity extends BridgeActivity {
             // BridgeWebViewClient that intercepts navigation and injects Watch Party overlay
             BridgeWebViewClient webViewClient = new BridgeWebViewClient(this.bridge) {
                 @Override
+                public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                    super.onPageStarted(view, url, favicon);
+                    handleUrlChange(view, url);
+                }
+
+                @Override
                 public void onPageFinished(WebView view, String url) {
                     super.onPageFinished(view, url);
                     handleUrlChange(view, url);

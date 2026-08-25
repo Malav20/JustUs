@@ -2,7 +2,12 @@
 // Provides Floating Party HUD, Cross-Platform Supabase Playback Sync, Event Logging & Chat
 
 (function () {
-  if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) return;
+  if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {
+    if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === "function") {
+      window.__JUSTUS_ENSURE_MOUNTED__();
+    }
+    return;
+  }
   window.__JUSTUS_PARTY_OVERLAY_LOADED__ = true;
 
   const SUPABASE_URL = "https://djuqnhqedykhectfhzba.supabase.co";
@@ -752,25 +757,29 @@
   shadow.appendChild(drawer);
 
   function ensureOverlayMounted() {
-    const existing = document.getElementById("justus-party-overlay-root");
-    const target = document.body || document.documentElement;
-    if (!existing && target) {
-      target.appendChild(hostDiv);
-    } else if (existing && target && existing.parentElement !== target) {
-      target.appendChild(existing);
-    }
+    try {
+      const existing = document.getElementById("justus-party-overlay-root");
+      const target = document.body || document.documentElement;
+      if (!existing && target) {
+        target.appendChild(hostDiv);
+      } else if (existing && target && existing.parentElement !== target) {
+        target.appendChild(existing);
+      }
+    } catch (e) {}
   }
+  window.__JUSTUS_ENSURE_MOUNTED__ = ensureOverlayMounted;
 
   if (document.body || document.documentElement) {
     ensureOverlayMounted();
-  } else {
+  }
+  if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", ensureOverlayMounted);
   }
 
   window.addEventListener("yt-navigate-finish", ensureOverlayMounted);
   window.addEventListener("popstate", ensureOverlayMounted);
   window.addEventListener("load", ensureOverlayMounted);
-  setInterval(ensureOverlayMounted, 600);
+  setInterval(ensureOverlayMounted, 400);
 
   // Party Pill Tap Handlers
   let lastPillToggleTimestamp = 0;
