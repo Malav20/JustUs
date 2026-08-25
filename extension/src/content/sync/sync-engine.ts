@@ -412,21 +412,44 @@ export class SyncEngine {
       return;
     }
 
-    // Auto-resync if drift > 2.0s and not in cooldown window (avoids spamming Netflix DRM player)
-    const now = Date.now();
-    if (drift > CONFIG.DRIFT_THRESHOLD_SECONDS && now - this.lastDriftResyncTime > 6000) {
-      this.lastDriftResyncTime = now;
-      console.log(`[JustUS] Drift resync (${Math.round(drift * 1000)}ms) -> Target: ${expectedTime.toFixed(2)}s`);
-      this.withSyncLock(async () => {
-        if (expectedTime > 1.0) {
+    // Adaptive Micro-Rate Adjustment for sub-second precision (<2.5s)
+    const delta = expectedTime - current; // positive = behind host, negative = ahead of host
+
+    if (Math.abs(delta) > CONFIG.DRIFT_THRESHOLD_SECONDS && expectedTime > 1.0) {
+      // Large drift (>2.5s): execute hard seek
+      this.adapter.setPlaybackRate(1.0);
+      const now = Date.now();
+      if (now - this.lastDriftResyncTime > 4000) {
+        this.lastDriftResyncTime = now;
+        console.log(`[JustUS] Drift hard-seek (${Math.round(drift * 1000)}ms) -> Target: ${expectedTime.toFixed(2)}s`);
+        this.withSyncLock(async () => {
           await this.adapter.seek(expectedTime);
-        }
-        if (payload.isPlaying && !this.adapter.isPlaying()) {
-          await this.adapter.play();
-        } else if (!payload.isPlaying && this.adapter.isPlaying()) {
-          await this.adapter.pause();
-        }
-      });
+          if (payload.isPlaying && !this.adapter.isPlaying()) {
+            await this.adapter.play();
+          } else if (!payload.isPlaying && this.adapter.isPlaying()) {
+            await this.adapter.pause();
+          }
+        });
+      }
+    } else if (payload.isPlaying && this.adapter.isPlaying()) {
+      // Seamless micro-catchup without seek or buffer stall
+      if (delta > 0.25) {
+        // Behind by 0.25s - 2.5s: speed up smoothly by 6% to catch up
+        this.adapter.setPlaybackRate(1.06);
+      } else if (delta < -0.25) {
+        // Ahead by 0.25s - 2.5s: slow down smoothly by 6% to let host catch up
+        this.adapter.setPlaybackRate(0.94);
+      } else {
+        // In exact sync (<250ms): standard 1.0x speed
+        this.adapter.setPlaybackRate(1.0);
+      }
+    } else {
+      this.adapter.setPlaybackRate(1.0);
+      if (payload.isPlaying && !this.adapter.isPlaying()) {
+        this.withSyncLock(async () => { await this.adapter.play(); });
+      } else if (!payload.isPlaying && this.adapter.isPlaying()) {
+        this.withSyncLock(async () => { await this.adapter.pause(); });
+      }
     }
   }
 

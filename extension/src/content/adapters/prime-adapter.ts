@@ -88,6 +88,18 @@ export class PrimeAdapter implements IPlayerAdapter {
     this.listeners.push(cb);
   }
 
+  setPlaybackRate(rate: number): void {
+    if (this.videoEl) {
+      try {
+        this.videoEl.playbackRate = rate;
+      } catch (e) {}
+    }
+  }
+
+  getPlaybackRate(): number {
+    return this.videoEl?.playbackRate || 1.0;
+  }
+
   destroy(): void {
     this.isDestroyed = true;
     this.listeners = [];

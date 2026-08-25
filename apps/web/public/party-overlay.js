@@ -131,6 +131,18 @@
     }
   }
 
+  let currentPlaybackRate = 1.0;
+  function setPlaybackRate(rate) {
+    if (Math.abs(currentPlaybackRate - rate) < 0.01) return;
+    currentPlaybackRate = rate;
+    const v = findVideoElement();
+    if (v) {
+      try {
+        v.playbackRate = rate;
+      } catch (e) {}
+    }
+  }
+
   function getCurrentVideoTime() {
     const netflixPlayer = getNetflixPlayer();
     if (netflixPlayer && typeof netflixPlayer.getCurrentTime === "function") {
@@ -878,13 +890,43 @@
   }
 
   function handleRemoteHeartbeat(payload) {
-    if (isSyncActionInProgress) return;
+    if (isSyncActionInProgress || isHost) return;
+
+    if (payload.videoUrl && !isHost) {
+      const currentUrl = window.location.href.split("#")[0].split("?")[0];
+      const targetUrl = payload.videoUrl.split("#")[0].split("?")[0];
+      if (currentUrl !== targetUrl && targetUrl.includes("/watch/")) {
+        window.location.href = payload.videoUrl + "#justus=" + activeRoomId;
+        return;
+      }
+    }
+
     const current = getCurrentVideoTime();
-    const latency = (Date.now() - (payload.sentAt || Date.now())) / 1000;
-    const target = payload.time + (payload.isPlaying && latency > 0 && latency < 2 ? latency : 0);
-    if (target > 1.0 && Math.abs(current - target) > 2.5) {
-      seekVideo(target);
+    const latency = Math.max(0, (Date.now() - (payload.sentAt || Date.now())) / 1000);
+    const hostExpectedTime = payload.isPlaying ? payload.time + latency : payload.time;
+    const delta = hostExpectedTime - current; // positive = behind host, negative = ahead of host
+
+    if (Math.abs(delta) > 2.5 && hostExpectedTime > 1.0) {
+      // Large drift: execute hard seek
+      setPlaybackRate(1.0);
+      seekVideo(hostExpectedTime);
       if (payload.isPlaying && !isVideoPlaying()) playVideo();
+    } else if (payload.isPlaying && isVideoPlaying()) {
+      // Adaptive micro-catchup for sub-second precision without buffer stall
+      if (delta > 0.25) {
+        // Behind by 0.25s - 2.5s: speed up smoothly by 6% to catch up
+        setPlaybackRate(1.06);
+      } else if (delta < -0.25) {
+        // Ahead by 0.25s - 2.5s: slow down smoothly by 6% to let host catch up
+        setPlaybackRate(0.94);
+      } else {
+        // In exact sync (<250ms): standard 1.0x speed
+        setPlaybackRate(1.0);
+      }
+    } else {
+      setPlaybackRate(1.0);
+      if (payload.isPlaying && !isVideoPlaying()) playVideo();
+      else if (!payload.isPlaying && isVideoPlaying()) pauseVideo();
     }
   }
 
@@ -945,7 +987,7 @@
           sentAt: Date.now(),
         },
       });
-    }, 3000);
+    }, 1200);
   }
 
   function attachLocalPlayerListeners() {

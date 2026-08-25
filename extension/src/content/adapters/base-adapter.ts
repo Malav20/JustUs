@@ -8,7 +8,8 @@ export interface IPlayerAdapter {
   getCurrentTime(): number;
   getDuration(): number;
   isPlaying(): boolean;
-  getVideoElement(): HTMLVideoElement | null;
   onStateChange(cb: (event: PlayerEventType, time: number) => void): void;
+  setPlaybackRate(rate: number): void;
+  getPlaybackRate(): number;
   destroy(): void;
 }
