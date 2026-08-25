@@ -33,7 +33,7 @@ jobs:
         run: |
           cd apps/web
           npm run build
-          npx cap sync ios
+          npx --yes @capacitor/cli sync ios
 
       - name: Build Unsigned iOS IPA
         run: |

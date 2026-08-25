@@ -39,7 +39,7 @@ jobs:
         run: |
           cd apps/web
           npm run build
-          npx cap sync android
+          npx --yes @capacitor/cli sync android
 
       - name: Build Debug APK with Gradle
         run: |

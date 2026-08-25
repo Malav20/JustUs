@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "cap": "cap"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
