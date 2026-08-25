@@ -2,6 +2,59 @@ import UIKit
 import Capacitor
 import WebKit
 
+@objc(StreamAuthPlugin)
+public class StreamAuthPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "StreamAuthPlugin"
+    public let jsName = "StreamAuth"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "loadService", returnType: CAPPluginMethodReturnPromise)
+    ]
+
+    @objc func loadService(_ call: CAPPluginCall) {
+        guard let urlString = call.getString("url"), let url = URL(string: urlString) else {
+            call.reject("Must provide URL")
+            return
+        }
+        
+        DispatchQueue.main.async {
+            if let webView = self.bridge?.webView {
+                var request = URLRequest(url: url)
+                request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+                webView.load(request)
+                call.resolve(["success": true])
+            } else {
+                call.reject("No webview found")
+            }
+        }
+    }
+
+    @objc public override func shouldOverrideLoad(_ navigationAction: WKNavigationAction!) -> NSNumber! {
+        guard let url = navigationAction.request.url else {
+            return nil
+        }
+        
+        let scheme = url.scheme?.lowercased() ?? ""
+        // Block custom schemes like netflix:// or nflx:// or primevideo:// so they don't open the external app
+        if scheme == "netflix" || scheme == "nflx" || scheme == "primevideo" || scheme == "aiv" {
+            return NSNumber(value: true) // Abort load
+        }
+        
+        // If it is a link click to netflix/prime, load it directly in the webview to prevent universal link handoff
+        if navigationAction.navigationType == .linkActivated {
+            if let host = url.host?.lowercased(), host.contains("netflix.com") || host.contains("primevideo.com") || host.contains("amazon.com") {
+                DispatchQueue.main.async {
+                    var req = URLRequest(url: url)
+                    req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+                    self.bridge?.webView?.load(req)
+                }
+                return NSNumber(value: true) // Abort default link click (which triggers Universal Link) and load programmatically!
+            }
+        }
+        
+        return nil
+    }
+}
+
 class MainViewController: CAPBridgeViewController {
     private var floatingHubButton: UIButton?
 

@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 import {
   CheckCircle2,
-  Tv,
-  ArrowLeft,
   Play,
   LogOut,
   ShieldCheck,
@@ -119,28 +117,39 @@ export function MobileWatchParty() {
     });
   };
 
-  // Connect flow: Launches service login inside app or via top-level navigation
+  // Helper to load service URL inside iOS WKWebView without triggering Universal Link handoff
+  const loadServiceInApp = async (targetUrl: string) => {
+    if (typeof window !== "undefined") {
+      const streamAuth = (window as any).Capacitor?.Plugins?.StreamAuth;
+      if (streamAuth?.loadService) {
+        try {
+          await streamAuth.loadService({ url: targetUrl });
+          return;
+        } catch (e) {
+          console.warn("StreamAuth plugin error:", e);
+        }
+      }
+      // Top-level direct navigation in WKWebView
+      window.location.href = targetUrl;
+    }
+  };
+
+  // Connect flow: Launches service login inside the app
   const handleConnectNow = (service: ServiceItem) => {
     setPendingService(service);
-    setIsConnectingModalOpen(true);
-
     try {
       localStorage.setItem("justus_pending_service", service.id);
     } catch (e) {}
 
-    // Check if running inside native Capacitor / iOS WKWebView
-    const isCapacitor = typeof window !== "undefined" && !!(window as any).Capacitor?.isNativePlatform?.();
+    const isNative = typeof window !== "undefined" && !!(window as any).Capacitor?.isNativePlatform?.();
 
-    if (isCapacitor) {
-      // In native iOS app, navigate top-level directly to bypass X-Frame-Options
-      // The native floating button in SceneDelegate lets the user return to JustUS anytime
+    if (isNative) {
+      // In native iOS app, load the login URL directly inside WKWebView
       showToast(`Opening ${service.name} login inside JustUS...`);
-      setTimeout(() => {
-        window.location.href = service.loginUrl;
-      }, 400);
+      loadServiceInApp(service.loginUrl);
     } else {
-      // In web browser / desktop, open the login in a companion tab & display confirmation modal
-      window.open(service.loginUrl, "_blank", "noopener,noreferrer");
+      // In browser testing, display modal and provide login button
+      setIsConnectingModalOpen(true);
     }
   };
 
@@ -151,11 +160,10 @@ export function MobileWatchParty() {
     showToast(`✓ ${service.name} is now connected!`);
   };
 
-  // Browse & Watch flow: Opens streaming catalog / player
+  // Browse & Watch flow: Opens streaming catalog / player inside app
   const handleBrowseAndWatch = (service: ServiceItem) => {
     showToast(`Loading ${service.name} catalog...`);
-    // Direct top-level navigation inside iOS WKWebView provides full DRM, hardware playback, and native controls
-    window.location.href = service.browseUrl;
+    loadServiceInApp(service.browseUrl);
   };
 
   // Disconnect service
@@ -344,7 +352,7 @@ export function MobileWatchParty() {
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 1. Tap <strong>Connect Now</strong> to log in securely with your streaming credentials directly inside the app.
                 <br />
-                2. Once logged in, tap <strong>Confirm Connected</strong> to save your session.
+                2. Tap the floating <strong>◀ JustUS Hub</strong> button at any time to return.
                 <br />
                 3. Browse full catalogs and play movies in high quality right on your iOS device!
               </p>
@@ -363,7 +371,7 @@ export function MobileWatchParty() {
       </div>
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* IN-APP CONNECTION CONFIRMATION MODAL                           */}
+      {/* IN-APP CONNECTION CONFIRMATION MODAL (Web Fallback)           */}
       {/* ───────────────────────────────────────────────────────────── */}
       {isConnectingModalOpen && pendingService && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -409,7 +417,7 @@ export function MobileWatchParty() {
                 className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-xs rounded-xl border border-white/10 flex items-center justify-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                <span>Re-open Login Page</span>
+                <span>Open Login Page</span>
               </button>
 
               <button
