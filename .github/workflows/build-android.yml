@@ -1,4 +1,4 @@
-name: Build iOS IPA
+name: Build Android APK
 
 on:
   workflow_dispatch:
@@ -6,8 +6,8 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build-ipa:
-    runs-on: macos-14
+  build-apk:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -17,11 +17,17 @@ jobs:
         with:
           node-version: 24
 
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
       - name: Install Dependencies
         run: |
           npm --prefix apps/web install
 
-      - name: Build Next.js App & Sync iOS
+      - name: Build Next.js App & Sync Android
         env:
           NEXT_PUBLIC_SUPABASE_URL: "https://djuqnhqedykhectfhzba.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqdXFuaHFlZHlraGVjdGZoemJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2MzMxNzcsImV4cCI6MjEwMzIwOTE3N30.UhcqK9MfjxuT-XjjiHzpnrRgZKjkyX2IDuh5FMhoO98"
@@ -33,18 +39,16 @@ jobs:
         run: |
           cd apps/web
           npm run build
-          npx cap sync ios
+          npx cap sync android
 
-      - name: Build Unsigned iOS IPA
+      - name: Build Debug APK with Gradle
         run: |
-          cd apps/web/ios/App
-          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath App.xcarchive archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
-          mkdir -p Payload
-          cp -r App.xcarchive/Products/Applications/App.app Payload/
-          zip -r JustUS.ipa Payload/
+          cd apps/web/android
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
-      - name: Upload IPA Artifact
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: JustUS-iOS-IPA
-          path: apps/web/ios/App/JustUS.ipa
+          name: JustUS-Android-APK
+          path: apps/web/android/app/build/outputs/apk/debug/app-debug.apk
