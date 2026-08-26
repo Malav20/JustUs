@@ -25,8 +25,8 @@
         <div class="waiting-pulse"></div>
         <span id="ju-waiting-text">Connecting video call...</span>
       </div>
-      <video class="remote-video-feed" id="ju-remote-video" autoplay muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback x-webkit-airplay="deny" controlslist="nodownload nofullscreen noremoteplayback noplaybackrate novolume"></video>
-      <video class="local-video-pip hidden" id="ju-local-video" autoplay muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback x-webkit-airplay="deny" controlslist="nodownload nofullscreen noremoteplayback noplaybackrate novolume"></video>
+      <video class="remote-video-feed" id="ju-remote-video" muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback x-webkit-airplay="deny" controlslist="nodownload nofullscreen noremoteplayback noplaybackrate novolume"></video>
+      <video class="local-video-pip" id="ju-local-video" muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback x-webkit-airplay="deny" controlslist="nodownload nofullscreen noremoteplayback noplaybackrate novolume" style="visibility:hidden;opacity:0"></video>
 
       <!-- Tap-to-Reveal Controls Overlay -->
       <div class="video-controls-overlay hidden" id="ju-video-controls">
@@ -341,9 +341,6 @@
   // Video Window Control Buttons
   setupControlButton("ju-btn-close-call", () => {
     videoWindow.classList.add("hidden");
-    if (remoteVideoTrack && typeof remoteVideoTrack.setSubscribed === "function") {
-      remoteVideoTrack.setSubscribed(false);
-    }
   });
 
   setupControlButton("ju-btn-hangup", () => {

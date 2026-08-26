@@ -7,7 +7,7 @@
 // (the SYNC object). Change both together.
 
 (function () {
-  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-v3";
+  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-v4";
   if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {
     if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === "function") {
       window.__JUSTUS_ENSURE_MOUNTED__();
@@ -71,7 +71,6 @@
 
   // Storage of events & chat
   const eventLogs = [];
-  let boundLocalPreviewTrack = null;
 
   // Helper to load Supabase JS SDK dynamically
   async function loadSupabase(callback) {
@@ -139,52 +138,3 @@
     }
   }
 
-  function getVideoCapturePreset() {
-    // Proven working capture from pre-336f86d overlay (iPad WKWebView).
-    return { width: 480, height: 360, frameRate: 24 };
-  }
-
-  function prepareCallVideoEl(el, { muted }) {
-    if (!el) return;
-    el.muted = !!muted;
-    el.defaultMuted = !!muted;
-    el.playsInline = true;
-    el.controls = false;
-    el.disablePictureInPicture = true;
-    el.setAttribute("playsinline", "");
-    el.setAttribute("webkit-playsinline", "");
-    el.setAttribute("x-webkit-airplay", "deny");
-    el.removeAttribute("controls");
-  }
-
-  // LiveKit track.attach() already calls play(). A second play() aborts the first
-  // on iOS WKWebView → one-frame flash, then black + native pause overlay.
-  function attachVideoTrack(track, videoEl) {
-    if (!track || !videoEl) return;
-    prepareCallVideoEl(videoEl, { muted: true });
-    try {
-      track.attach(videoEl);
-    } catch (e) {
-      console.warn("[JustUS] track.attach failed:", e);
-    }
-  }
-
-  function attachLocalPreview(track, videoEl) {
-    if (!track || !videoEl) return;
-    const mediaTrack = track.mediaStreamTrack;
-    if (!mediaTrack) return;
-
-    prepareCallVideoEl(videoEl, { muted: true });
-    videoEl.classList.remove("hidden");
-
-    const current =
-      videoEl.srcObject instanceof MediaStream ? videoEl.srcObject.getVideoTracks()[0] : null;
-    if (current === mediaTrack && !videoEl.paused) return;
-
-    if (current !== mediaTrack) {
-      videoEl.srcObject = new MediaStream([mediaTrack]);
-    }
-    if (videoEl.paused) {
-      videoEl.play().catch(() => {});
-    }
-  }
