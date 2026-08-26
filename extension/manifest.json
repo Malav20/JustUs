@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "JustUS - Watch Party + Video Call",
+  "version": "1.0.0",
+  "description": "JustUS synchronized watch party with 1-on-1 WebRTC video calling for Netflix and Amazon Prime Video.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.netflix.com/*",
+    "https://www.primevideo.com/*",
+    "https://*.amazon.com/*",
+    "https://*.amazon.co.uk/*",
+    "https://*.amazon.de/*",
+    "https://www.youtube.com/*",
+    "https://*.youtube.com/*",
+    "https://youtube.com/*",
+    "https://*.supabase.co/*",
+    "wss://*.livekit.cloud/*",
+    "http://localhost:3000/*",
+    "https://*.vercel.app/*"
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "JustUS Watch Party",
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.netflix.com/*",
+        "https://www.primevideo.com/*",
+        "https://*.amazon.com/*",
+        "https://www.youtube.com/*",
+        "https://*.youtube.com/*",
+        "https://youtube.com/*",
+        "https://youtu.be/*",
+        "http://localhost:3000/sandbox*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js", "src/content/injected.js", "assets/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JustUS Watch Party</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="tp-popup">
+    <!-- Top Header -->
+    <header class="tp-header">
+      <div class="tp-logo">
+        <img src="icon32.png" alt="JustUS" style="width: 26px; height: 26px; border-radius: 8px; object-fit: cover;" />
+        <span class="tp-brand-name">JustUS</span>
+      </div>
+      <div class="tp-status" id="status-pill">
+        <span class="tp-dot"></span>
+        <span id="status-text">Standby</span>
+      </div>
+    </header>
+
+    <!-- State 1: Active Video Tab -> Ready to Create Party -->
+    <div id="ready-view" class="tp-view">
+      <h2 class="tp-title">Create a Watch Party</h2>
+      
+      <div class="tp-control-toggle">
+        <label class="switch-container">
+          <input type="checkbox" id="host-only-toggle" checked />
+          <span class="slider"></span>
+          <span class="toggle-label">Only I have control</span>
+        </label>
+      </div>
+
+      <div class="tp-field">
+        <label>Your Display Name</label>
+        <input type="text" id="host-name-input" value="Host" placeholder="Enter your name" />
+      </div>
+
+      <button id="btn-start-party" class="tp-btn-primary">
+        Start the party
+      </button>
+
+      <div class="tp-divider"><span>OR JOIN</span></div>
+
+      <div class="tp-join-row">
+        <input type="text" id="join-code-input" placeholder="Enter Room Code" />
+        <button id="btn-quick-join" class="tp-btn-secondary">Join</button>
+      </div>
+    </div>
+
+    <!-- State 2: Party Running View (Share URL) -->
+    <div id="active-party-view" class="tp-view hidden">
+      <h2 class="tp-title">Party is Live! 🎉</h2>
+      <p class="tp-subtitle">Share this link to invite your friends:</p>
+
+      <div class="tp-share-box">
+        <input type="text" id="party-url-input" readonly />
+        <button id="btn-copy-url" class="tp-btn-copy">Copy URL</button>
+      </div>
+
+      <div class="tp-party-stats">
+        <div class="tp-stat">
+          <span class="tp-stat-lbl">Room Code</span>
+          <span class="tp-stat-val" id="stat-room-code">-</span>
+        </div>
+        <div class="tp-stat">
+          <span class="tp-stat-lbl">Video Call</span>
+          <span class="tp-stat-val text-green">1-on-1 WebRTC Ready</span>
+        </div>
+      </div>
+
+      <button id="btn-stop-party" class="tp-btn-danger">
+        Disconnect Party
+      </button>
+    </div>
+
+    <!-- State 3: Not on a streaming site -->
+    <div id="inactive-tab-view" class="tp-view hidden">
+      <div class="tp-empty-icon">📺</div>
+      <h3 class="tp-empty-title">Navigate to a Video</h3>
+      <p class="tp-empty-desc">
+        Open a movie or episode on <strong>Netflix</strong> or <strong>Prime Video</strong>, then click this icon to start a party.
+      </p>
+
+      <div class="tp-quick-links">
+        <a href="https://www.netflix.com" target="_blank" class="tp-service-link netflix">Open Netflix</a>
+        <a href="https://www.primevideo.com" target="_blank" class="tp-service-link prime">Open Prime Video</a>
+        <a href="https://www.youtube.com" target="_blank" class="tp-service-link youtube" style="background: #FF0000; color: #fff;">Open YouTube</a>
+        <a href="http://localhost:3000/sandbox" target="_blank" class="tp-service-link sandbox">Open Sandbox Test</a>
+      </div>
+    </div>
+
+    <footer class="tp-footer">
+      <span>JustUS Watch Party with 1-on-1 Video</span>
+    </footer>
+  </div>
+
+  <script type="module" src="popup.ts"></script>
+</body>
+</html>

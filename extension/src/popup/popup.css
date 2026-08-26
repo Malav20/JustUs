@@ -1,0 +1,355 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  width: 320px;
+  background-color: #11131E;
+  color: #F8FAFC;
+  overflow: hidden;
+}
+
+.tp-popup {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Header */
+.tp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tp-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tp-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #E50914, #6366F1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 900;
+  font-size: 13px;
+  box-shadow: 0 4px 10px rgba(229, 9, 20, 0.35);
+}
+
+.tp-brand-name {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.3px;
+}
+
+.tp-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 10px;
+  font-weight: 600;
+  color: #94A3B8;
+}
+
+.tp-status.active {
+  color: #10B981;
+}
+
+.tp-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #64748B;
+}
+.tp-status.active .tp-dot {
+  background: #10B981;
+  box-shadow: 0 0 6px #10B981;
+}
+
+/* Views */
+.tp-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tp-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.tp-subtitle {
+  font-size: 11px;
+  color: #94A3B8;
+}
+
+/* Control Toggle */
+.tp-control-toggle {
+  background: rgba(255, 255, 255, 0.04);
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.switch-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #CBD5E1;
+}
+
+.switch-container input {
+  display: none;
+}
+
+.slider {
+  width: 32px;
+  height: 18px;
+  background: #334155;
+  border-radius: 18px;
+  position: relative;
+  transition: 0.2s;
+}
+
+.slider::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.switch-container input:checked + .slider {
+  background: #E50914;
+}
+.switch-container input:checked + .slider::after {
+  transform: translateX(14px);
+}
+
+/* Fields */
+.tp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tp-field label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748B;
+  letter-spacing: 0.5px;
+}
+
+.tp-field input {
+  background: #090A0F;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #fff;
+  font-size: 12px;
+  outline: none;
+}
+.tp-field input:focus {
+  border-color: #E50914;
+}
+
+/* Buttons */
+.tp-btn-primary {
+  background: #E50914;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(229, 9, 20, 0.35);
+}
+.tp-btn-primary:hover {
+  background: #F40612;
+}
+
+.tp-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: #475569;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin: 2px 0;
+}
+.tp-divider::before, .tp-divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.tp-divider span {
+  padding: 0 8px;
+}
+
+.tp-join-row {
+  display: flex;
+  gap: 6px;
+}
+.tp-join-row input {
+  flex: 1;
+  background: #090A0F;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #fff;
+  font-size: 12px;
+  outline: none;
+}
+.tp-btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tp-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Share View */
+.tp-share-box {
+  display: flex;
+  gap: 6px;
+}
+.tp-share-box input {
+  flex: 1;
+  background: #090A0F;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #CBD5E1;
+  font-size: 11px;
+  font-family: monospace;
+}
+.tp-btn-copy {
+  background: #E50914;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.tp-party-stats {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 8px 10px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+.tp-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tp-stat-lbl {
+  font-size: 9px;
+  color: #64748B;
+  text-transform: uppercase;
+}
+.tp-stat-val {
+  font-size: 11px;
+  font-weight: 600;
+}
+.text-green { color: #10B981; }
+
+.tp-btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #F87171;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Inactive View */
+.tp-empty-icon {
+  font-size: 28px;
+  text-align: center;
+}
+.tp-empty-title {
+  text-align: center;
+  font-size: 14px;
+}
+.tp-empty-desc {
+  text-align: center;
+  font-size: 11px;
+  color: #94A3B8;
+  line-height: 1.4;
+}
+
+.tp-quick-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+.tp-service-link {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.tp-service-link.netflix {
+  background: #E50914;
+  color: #fff;
+}
+.tp-service-link.prime {
+  background: #00A8E1;
+  color: #fff;
+}
+.tp-service-link.sandbox {
+  background: #6366F1;
+  color: #fff;
+}
+
+.tp-footer {
+  text-align: center;
+  font-size: 10px;
+  color: #475569;
+}
+
+.hidden { display: none !important; }
