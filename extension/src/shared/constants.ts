@@ -5,6 +5,6 @@ export const CONFIG = {
   LIVEKIT_WS_URL: "wss://justus-0q7zbww8.livekit.cloud",
   WEB_API_URL: "https://just-us-web.vercel.app",
   DRIFT_THRESHOLD_SECONDS: 0.15, // 150ms tolerance
-  HEARTBEAT_INTERVAL_MS: 500,  // 500ms high-precision heartbeat
+  HEARTBEAT_INTERVAL_MS: 2000, // 2s adaptive smooth heartbeat
   SYNC_ACTION_COOLDOWN_MS: 400, // echo prevention lock window
 };

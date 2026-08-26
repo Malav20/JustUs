@@ -152,11 +152,27 @@
     } catch (e) {}
   }
 
-  // Handle visibility change to re-acquire wake lock if tab is focused during playback
+  // Resilient visibility and network reconnect handlers
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && (isWakeLockRequested || isVideoPlaying())) {
-        setWakeLock(true);
+      if (document.visibilityState === "visible") {
+        if (isWakeLockRequested || isVideoPlaying()) {
+          setWakeLock(true);
+        }
+        // Re-verify and restore channel connectivity on tab resume
+        if (activeRoomId && supabaseClient) {
+          if (!activeChannel || activeChannel.state === "errored" || activeChannel.state === "closed") {
+            console.log("[JustUS] Tab resumed, reconnecting Realtime channel...");
+            connectRealtimeChannel(activeRoomId, isHost);
+          }
+        }
+      }
+    });
+
+    window.addEventListener("online", () => {
+      console.log("[JustUS] Network back online, restoring party state...");
+      if (activeRoomId && supabaseClient) {
+        connectRealtimeChannel(activeRoomId, isHost);
       }
     });
   }
@@ -278,16 +294,16 @@
       gap: 8px !important;
       z-index: 2147483647 !important;
       pointer-events: none !important;
+      transform: translate3d(0, 0, 0) !important;
+      will-change: transform !important;
     }
     
     .floating-pill {
       height: 38px !important;
       padding: 0 14px !important;
       border-radius: 19px !important;
-      background: rgba(18, 20, 31, 0.94) !important;
-      backdrop-filter: blur(16px) !important;
-      -webkit-backdrop-filter: blur(16px) !important;
-      border: 1px solid rgba(255, 255, 255, 0.25) !important;
+      background: #111320 !important;
+      border: 1px solid rgba(255, 255, 255, 0.22) !important;
       color: #ffffff !important;
       font-size: 12px !important;
       font-weight: 700 !important;
@@ -303,17 +319,18 @@
       touch-action: manipulation !important;
       -ms-touch-action: manipulation !important;
       transition: transform 0.15s ease, background 0.2s ease !important;
+      transform: translate3d(0, 0, 0) !important;
       opacity: 1 !important;
       visibility: visible !important;
     }
-    .floating-pill:active { transform: scale(0.96); }
+    .floating-pill:active { transform: translate3d(0, 0, 0) scale(0.96) !important; }
     .floating-pill.hidden { display: none !important; }
     .floating-pill.video-pill {
-      background: rgba(30, 27, 75, 0.94) !important;
+      background: #1e1b4b !important;
       border-color: rgba(99, 102, 241, 0.45) !important;
     }
     .floating-pill.video-pill.active {
-      background: rgba(6, 78, 59, 0.94) !important;
+      background: #064e3b !important;
       border-color: rgba(16, 185, 129, 0.5) !important;
     }
     .status-dot {
@@ -333,7 +350,7 @@
       100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
 
-    /* Ultra-Sleek Floating Video-First PIP Window */
+    /* Ultra-Sleek Floating Video-First PIP Window (Hardware Composited) */
     .video-call-window {
       position: fixed;
       top: 65px;
@@ -354,6 +371,8 @@
       user-select: none;
       -webkit-user-select: none;
       touch-action: none;
+      transform: translate3d(0, 0, 0);
+      will-change: transform;
       transition: box-shadow 0.2s ease;
     }
     .video-call-window.hidden {
@@ -512,9 +531,7 @@
       bottom: 0 !important;
       width: min(340px, 92vw) !important;
       max-width: 100vw !important;
-      background: rgba(14, 16, 26, 0.98) !important;
-      backdrop-filter: blur(24px) !important;
-      -webkit-backdrop-filter: blur(24px) !important;
+      background: #0e101a !important;
       border-left: 1px solid rgba(255, 255, 255, 0.15) !important;
       box-shadow: -10px 0 40px rgba(0, 0, 0, 0.75) !important;
       display: flex !important;
@@ -522,11 +539,12 @@
       color: #F1F5F9 !important;
       z-index: 2147483647 !important;
       pointer-events: auto !important;
-      transform: translateX(100%) !important;
+      transform: translate3d(100%, 0, 0) !important;
+      will-change: transform !important;
       transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
     }
     .drawer-overlay.open {
-      transform: translateX(0) !important;
+      transform: translate3d(0, 0, 0) !important;
     }
 
     .drawer-header {
@@ -795,7 +813,15 @@
       }
     } catch (e) {}
   }
-  window.__JUSTUS_ENSURE_MOUNTED__ = ensureOverlayMounted;
+  let mountScheduled = false;
+  function scheduleEnsureMounted() {
+    if (mountScheduled) return;
+    mountScheduled = true;
+    requestAnimationFrame(() => {
+      mountScheduled = false;
+      ensureOverlayMounted();
+    });
+  }
 
   if (document.body || document.documentElement) {
     ensureOverlayMounted();
@@ -807,7 +833,15 @@
   window.addEventListener("yt-navigate-finish", ensureOverlayMounted);
   window.addEventListener("popstate", ensureOverlayMounted);
   window.addEventListener("load", ensureOverlayMounted);
-  setInterval(ensureOverlayMounted, 400);
+
+  try {
+    const observer = new MutationObserver(() => {
+      if (!document.getElementById("justus-party-overlay-root")) {
+        scheduleEnsureMounted();
+      }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: false });
+  } catch (e) {}
 
   // Drawer Open / Close State Controller
   let isDrawerOpen = false;
@@ -922,28 +956,36 @@
     winStartTop = rect.top;
   }
 
+  let isPointerMoveScheduled = false;
+  let latestPointerEvent = null;
+
   function onWindowPointerMove(e) {
     if (!isDraggingWindow) return;
-    const deltaX = e.clientX - dragWindowStartX;
-    const deltaY = e.clientY - dragWindowStartY;
+    latestPointerEvent = e;
+    if (isPointerMoveScheduled) return;
+    isPointerMoveScheduled = true;
 
-    if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
-      hasMovedWindow = true;
-    }
+    requestAnimationFrame(() => {
+      isPointerMoveScheduled = false;
+      if (!isDraggingWindow || !latestPointerEvent) return;
+      const deltaX = latestPointerEvent.clientX - dragWindowStartX;
+      const deltaY = latestPointerEvent.clientY - dragWindowStartY;
 
-    if (hasMovedWindow) {
-      let newLeft = winStartLeft + deltaX;
-      let newTop = winStartTop + deltaY;
+      if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+        hasMovedWindow = true;
+      }
 
-      const winWidth = videoWindow.offsetWidth;
-      const winHeight = videoWindow.offsetHeight;
-      newLeft = Math.max(8, Math.min(window.innerWidth - winWidth - 8, newLeft));
-      newTop = Math.max(8, Math.min(window.innerHeight - winHeight - 8, newTop));
+      if (hasMovedWindow) {
+        const winWidth = videoWindow.offsetWidth;
+        const winHeight = videoWindow.offsetHeight;
+        const newLeft = Math.max(8, Math.min(window.innerWidth - winWidth - 8, winStartLeft + deltaX));
+        const newTop = Math.max(8, Math.min(window.innerHeight - winHeight - 8, winStartTop + deltaY));
 
-      videoWindow.style.left = `${newLeft}px`;
-      videoWindow.style.top = `${newTop}px`;
-      videoWindow.style.right = "auto";
-    }
+        videoWindow.style.left = `${newLeft}px`;
+        videoWindow.style.top = `${newTop}px`;
+        videoWindow.style.right = "auto";
+      }
+    });
   }
 
   function onWindowPointerUp(e) {
@@ -1009,6 +1051,9 @@
   shadow.getElementById("ju-btn-close-call")?.addEventListener("click", (e) => {
     e.stopPropagation();
     videoWindow.classList.add("hidden");
+    if (remoteVideoTrack && typeof remoteVideoTrack.setSubscribed === "function") {
+      remoteVideoTrack.setSubscribed(false);
+    }
   });
   shadow.getElementById("ju-btn-hangup")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -1037,6 +1082,7 @@
   let livekitRoom = null;
   let localVideoTrack = null;
   let localAudioTrack = null;
+  let remoteVideoTrack = null;
   let remoteAudioEl = null;
   let isVideoCallActive = false;
   let isMicEnabled = true;
@@ -1070,61 +1116,48 @@
 
     if (videoWindow.classList.contains("hidden")) {
       videoWindow.classList.remove("hidden");
+      if (remoteVideoTrack && typeof remoteVideoTrack.setSubscribed === "function") {
+        remoteVideoTrack.setSubscribed(true);
+      }
       toggleControlsOverlay();
       if (!livekitRoom && !isLiveKitConnecting) {
         connectLiveKitCall();
       }
     } else {
       videoWindow.classList.add("hidden");
+      if (remoteVideoTrack && typeof remoteVideoTrack.setSubscribed === "function") {
+        remoteVideoTrack.setSubscribed(false);
+      }
     }
   }
 
-  // Fallback JWT token generator using browser WebCrypto
-  async function createClientLiveKitToken(roomName, identity, isHost) {
-    try {
-      const header = { alg: "HS256", typ: "JWT" };
-      const now = Math.floor(Date.now() / 1000);
-      const payload = {
-        iss: "APIukxmynV6MQkR",
-        sub: identity,
-        name: identity.split("_")[0],
-        nbf: now - 5,
-        exp: now + 6 * 3600,
-        video: {
-          roomJoin: true,
-          room: roomName,
-          canPublish: true,
-          canSubscribe: true,
-          canPublishData: true,
-          roomAdmin: Boolean(isHost),
-        },
-      };
-
-      function b64url(str) {
-        return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  async function fetchLiveKitTokenWithRetry(roomName, identity, userName, isHost, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const res = await fetch(`${API_BASE}/api/livekit/token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            roomName,
+            identity,
+            name: userName,
+            isHost: Boolean(isHost),
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.token) {
+            return { token: data.token, wsUrl: data.wsUrl || "wss://justus-0q7zbww8.livekit.cloud" };
+          }
+        }
+      } catch (err) {
+        console.warn(`[JustUS] Token fetch attempt ${attempt} failed:`, err);
       }
-
-      const encHeader = b64url(JSON.stringify(header));
-      const encPayload = b64url(JSON.stringify(payload));
-      const dataToSign = `${encHeader}.${encPayload}`;
-
-      const enc = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        "raw",
-        enc.encode("OiAeIxN1foN0UQTbvdWW4veSRC4rtTNZua64vC9Qzl3A"),
-        { name: "HMAC", hash: "SHA-256" },
-        false,
-        ["sign"]
-      );
-      const sigBuf = await crypto.subtle.sign("HMAC", key, enc.encode(dataToSign));
-      const sigArray = Array.from(new Uint8Array(sigBuf));
-      const sigStr = sigArray.map((b) => String.fromCharCode(b)).join("");
-      const signatureB64 = b64url(sigStr);
-      return `${dataToSign}.${signatureB64}`;
-    } catch (e) {
-      console.warn("[JustUS] Local JWT generation fallback failed:", e);
-      return null;
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 600));
+      }
     }
+    return null;
   }
 
   async function connectLiveKitCall() {
@@ -1136,35 +1169,10 @@
     loadLiveKitSDK(async () => {
       try {
         const participantId = currentUserName + "_" + Math.random().toString(36).substring(2, 6);
-        let token = null;
-        let wsUrl = "wss://justus-0q7zbww8.livekit.cloud";
+        const tokenResult = await fetchLiveKitTokenWithRetry(activeRoomId, participantId, currentUserName, isHost);
 
-        try {
-          const res = await fetch(`${API_BASE}/api/livekit/token`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              roomName: activeRoomId,
-              identity: participantId,
-              name: currentUserName,
-              isHost: isHost,
-            }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            token = data.token;
-            if (data.wsUrl) wsUrl = data.wsUrl;
-          }
-        } catch (fetchErr) {
-          console.warn("[JustUS] Token API fetch notice, using direct token generator:", fetchErr);
-        }
-
-        if (!token) {
-          token = await createClientLiveKitToken(activeRoomId, participantId, isHost);
-        }
-
-        if (!token) {
-          throw new Error("Unable to obtain LiveKit token");
+        if (!tokenResult || !tokenResult.token) {
+          throw new Error("Could not connect to video server. Please check your network.");
         }
 
         const room = new window.LivekitClient.Room({
@@ -1176,6 +1184,7 @@
         room.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, pub, participant) => {
           const waitingOverlay = shadow.getElementById("ju-video-waiting");
           if (track.kind === window.LivekitClient.Track.Kind.Video) {
+            remoteVideoTrack = track;
             const remoteVideo = shadow.getElementById("ju-remote-video");
             if (remoteVideo) {
               track.attach(remoteVideo);
@@ -1193,6 +1202,7 @@
         room.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
           track.detach();
           if (track.kind === window.LivekitClient.Track.Kind.Video) {
+            if (remoteVideoTrack === track) remoteVideoTrack = null;
             const waitingOverlay = shadow.getElementById("ju-video-waiting");
             if (waitingOverlay) waitingOverlay.classList.remove("hidden");
           }
@@ -1216,7 +1226,6 @@
         updateVideoPillState();
 
         // 1. Microphone track strictly with Acoustic Echo Cancellation & Noise Suppression
-        // Isolated to hardware mic so speaker video playback audio is NOT transmitted into the call
         try {
           localAudioTrack = await window.LivekitClient.createLocalAudioTrack({
             echoCancellation: true,
@@ -1228,10 +1237,11 @@
           console.warn("[JustUS] Microphone setup notice:", e);
         }
 
-        // 2. Front/User Camera track
+        // 2. Front/User Camera track (Lightweight mobile 360x270 @ 20fps for silky background video playback)
         try {
           localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
             facingMode: currentFacingMode || "user",
+            resolution: { width: 360, height: 270, frameRate: 20 },
           });
           const localVideoEl = shadow.getElementById("ju-local-video");
           if (localVideoEl) {
@@ -1255,6 +1265,7 @@
 
   function leaveLiveKitCall() {
     isVideoCallActive = false;
+    remoteVideoTrack = null;
     if (localAudioTrack) {
       try {
         localAudioTrack.stop();
@@ -1335,7 +1346,7 @@
         try {
           localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
             facingMode: currentFacingMode,
-            resolution: { width: 480, height: 360, frameRate: 24 },
+            resolution: { width: 360, height: 270, frameRate: 20 },
           });
           if (localVideoEl) {
             localVideoTrack.attach(localVideoEl);
@@ -1945,19 +1956,19 @@
         // Large drift: Hard seek
         seekVideo(hostExpectedTime);
         setPlaybackRate(1.0);
-      } else if (delta > 0.08) {
-        // Viewer is slightly behind host: smoothly speed up to eliminate drift
-        setPlaybackRate(1.08);
-      } else if (delta < -0.08) {
-        // Viewer is slightly ahead of host: smoothly slow down
-        setPlaybackRate(0.92);
+      } else if (delta > 0.15) {
+        // Viewer is slightly behind host: gently speed up without pitch distortion
+        setPlaybackRate(1.04);
+      } else if (delta < -0.15) {
+        // Viewer is slightly ahead of host: gently slow down without pitch distortion
+        setPlaybackRate(0.96);
       } else {
-        // Frame-perfect sync (within 80ms)
+        // Frame-perfect sync (within 150ms deadband)
         setPlaybackRate(1.0);
       }
     } else {
       setPlaybackRate(1.0);
-      if (Math.abs(delta) > 0.15 && hostExpectedTime > 0.5) {
+      if (Math.abs(delta) > 0.2 && hostExpectedTime > 0.5) {
         seekVideo(hostExpectedTime);
       }
       if (isVideoPlaying()) {
@@ -2025,7 +2036,7 @@
           sentAt: Date.now(),
         },
       });
-    }, 500);
+    }, 2000);
   }
 
   function attachLocalPlayerListeners() {

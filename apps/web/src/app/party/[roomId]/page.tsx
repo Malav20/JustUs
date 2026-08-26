@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback, memo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -23,6 +23,156 @@ setLogLevel(LogLevel.silent);
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://djuqnhqedykhectfhzba.supabase.co";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqdXFuaHFlZHlraGVjdGZoemJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2MzMxNzcsImV4cCI6MjEwMzIwOTE3N30.UhcqK9MfjxuT-XjjiHzpnrRgZKjkyX2IDuh5FMhoO98";
 
+// ── Memoized Sub-components to prevent root cascade re-renders ──
+
+const PartyHeader = memo(function PartyHeader({
+  isChatOpen,
+  isPipClosed,
+  onToggleChat,
+  onReopenPip,
+}: {
+  isChatOpen: boolean;
+  isPipClosed: boolean;
+  onToggleChat: () => void;
+  onReopenPip: () => void;
+}) {
+  return (
+    <header className="absolute top-0 left-0 right-0 h-14 bg-gradient-to-b from-black/90 to-transparent flex items-center justify-between px-4 z-40 pointer-events-auto">
+      <div className="flex items-center space-x-2">
+        <img
+          src="/logo.png"
+          alt="JustUS"
+          className="w-7 h-7 rounded-lg object-cover border border-white/20"
+        />
+        <span className="text-xs font-bold text-white tracking-wider">JUSTUS PARTY</span>
+      </div>
+      <div className="flex items-center space-x-3">
+        <button
+          onClick={onToggleChat}
+          className={`p-2 rounded-full border transition-colors ${
+            isChatOpen ? "bg-indigo-600 border-indigo-500 text-white" : "bg-[#131524] border-white/20 text-white"
+          }`}
+        >
+          💬
+        </button>
+        {isPipClosed && (
+          <button
+            onClick={onReopenPip}
+            className="px-3 py-1.5 rounded-full bg-emerald-600 border border-emerald-400 text-xs font-semibold flex items-center gap-1.5 text-white"
+          >
+            📹 Reopen Cam
+          </button>
+        )}
+      </div>
+    </header>
+  );
+});
+
+const MainPlayer = memo(function MainPlayer({
+  service,
+  videoUrl,
+  videoRef,
+  onPlay,
+  onPause,
+  onSeek,
+}: {
+  service: string;
+  videoUrl: string;
+  videoRef: React.RefObject<HTMLVideoElement>;
+  onPlay: () => void;
+  onPause: () => void;
+  onSeek: () => void;
+}) {
+  if (service === "generic" || videoUrl.includes(".mp4")) {
+    return (
+      <video
+        ref={videoRef}
+        src={videoUrl}
+        controls
+        playsInline
+        onPlay={onPlay}
+        onPause={onPause}
+        onSeeked={onSeek}
+        onEnded={() => setAppWakeLock(false)}
+        onEmptied={() => setAppWakeLock(false)}
+        className="w-full h-full object-contain bg-black"
+      />
+    );
+  }
+  return (
+    <iframe
+      src={videoUrl}
+      allow="autoplay; encrypted-media; fullscreen"
+      className="w-full h-full border-0 bg-black"
+    />
+  );
+});
+
+const ChatDrawer = memo(function ChatDrawer({
+  isOpen,
+  userName,
+  messages,
+  inputMsg,
+  onClose,
+  onInputChange,
+  onSendMessage,
+}: {
+  isOpen: boolean;
+  userName: string;
+  messages: Array<{ sender: string; text: string; time: string }>;
+  inputMsg: string;
+  onClose: () => void;
+  onInputChange: (val: string) => void;
+  onSendMessage: (e: React.FormEvent) => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <aside className="absolute top-0 right-0 bottom-0 w-72 bg-[#0E101D] border-l border-white/10 z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
+      <div className="h-14 border-b border-white/10 px-4 flex items-center justify-between">
+        <span className="font-bold text-xs text-white">Party Chat</span>
+        <button onClick={onClose} className="text-slate-400 hover:text-white text-sm">
+          ✕
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+        {messages.length === 0 ? (
+          <div className="text-center text-slate-500 text-xs py-8">No messages yet. Say hi! 👋</div>
+        ) : (
+          messages.map((msg, i) => (
+            <div
+              key={i}
+              className={`p-2.5 rounded-xl text-xs ${
+                msg.sender === userName ? "bg-indigo-600/30 ml-4" : "bg-white/5 mr-4"
+              }`}
+            >
+              <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+                <span className="font-semibold text-indigo-300">{msg.sender}</span>
+                <span>{msg.time}</span>
+              </div>
+              <p className="text-white break-words">{msg.text}</p>
+            </div>
+          ))
+        )}
+      </div>
+
+      <form onSubmit={onSendMessage} className="p-3 border-t border-white/10 flex gap-2">
+        <input
+          type="text"
+          value={inputMsg}
+          onChange={(e) => onInputChange(e.target.value)}
+          placeholder="Type a message..."
+          className="flex-1 bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+        />
+        <button type="submit" className="px-3.5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">
+          Send
+        </button>
+      </form>
+    </aside>
+  );
+});
+
 export default function MobileWatchPartyPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -41,19 +191,21 @@ export default function MobileWatchPartyPage() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
   const [camEnabled, setCamEnabled] = useState(true);
-  const [participantCount, setParticipantCount] = useState(1);
-  const [callVolume, setCallVolume] = useState(0.8);
   const [chatMessages, setChatMessages] = useState<Array<{ sender: string; text: string; time: string }>>([]);
   const [inputMsg, setInputMsg] = useState("");
 
-  // Dragging states
-  const [pos, setPos] = useState({ x: 16, y: 70 });
+  // Position & Dragging (Hardware Composited via ref)
+  const pipWidgetRef = useRef<HTMLDivElement | null>(null);
+  const posRef = useRef({ x: 16, y: 70 });
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
+  const isRafScheduled = useRef(false);
+  const latestMoveEvent = useRef<{ clientX: number; clientY: number } | null>(null);
 
   // DOM & WebRTC references
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoTrackRef = useRef<RemoteTrack | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const mainVideoRef = useRef<HTMLVideoElement | null>(null);
   const livekitRoomRef = useRef<Room | null>(null);
@@ -97,13 +249,23 @@ export default function MobileWatchPartyPage() {
         });
 
         room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
-          if (track.kind === Track.Kind.Video && remoteVideoRef.current) {
-            track.attach(remoteVideoRef.current);
+          if (track.kind === Track.Kind.Video) {
+            remoteVideoTrackRef.current = track;
+            if (remoteVideoRef.current) {
+              track.attach(remoteVideoRef.current);
+            }
           }
           if (track.kind === Track.Kind.Audio) {
             const audio = track.attach();
             remoteAudioRef.current = audio;
-            audio.volume = callVolume;
+            audio.volume = 0.85;
+          }
+        });
+
+        room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+          track.detach();
+          if (track.kind === Track.Kind.Video && remoteVideoTrackRef.current === track) {
+            remoteVideoTrackRef.current = null;
           }
         });
 
@@ -111,17 +273,26 @@ export default function MobileWatchPartyPage() {
         livekitRoomRef.current = room;
 
         if (room.state === ConnectionState.Connected) {
-          const videoTrack = await createLocalVideoTrack({ resolution: { width: 320, height: 240 } });
+          // Mobile-friendly low-overhead constraints: 320x240 @ 20fps
+          const videoTrack = await createLocalVideoTrack({
+            resolution: { width: 320, height: 240, frameRate: 20 },
+          });
           localVideoTrackRef.current = videoTrack;
           if (localVideoRef.current) videoTrack.attach(localVideoRef.current);
           await room.localParticipant.publishTrack(videoTrack);
 
-          const audioTrack = await createLocalAudioTrack();
+          const audioTrack = await createLocalAudioTrack({
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          });
           localAudioTrackRef.current = audioTrack;
           await room.localParticipant.publishTrack(audioTrack);
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn("LiveKit connection notice:", e);
+    }
 
     // Supabase Realtime Channel
     const supabase = supabaseRef.current;
@@ -146,10 +317,6 @@ export default function MobileWatchPartyPage() {
       .on("broadcast", { event: "CHAT" }, ({ payload }) => {
         setChatMessages((prev) => [...prev, payload]);
       })
-      .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState();
-        setParticipantCount(Math.max(1, Object.keys(state).length));
-      })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await channel.track({ userName, joinedAt: Date.now() });
@@ -158,6 +325,60 @@ export default function MobileWatchPartyPage() {
 
     channelRef.current = channel;
   };
+
+  // Lifecycle track subscription pause when PIP is minimized or closed
+  useEffect(() => {
+    if (remoteVideoTrackRef.current && typeof (remoteVideoTrackRef.current as any).setSubscribed === "function") {
+      const shouldSubscribe = !isPipClosed && !isPipMinimized;
+      (remoteVideoTrackRef.current as any).setSubscribed(shouldSubscribe);
+    }
+  }, [isPipClosed, isPipMinimized]);
+
+  // Tab resume and network resilience listener
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && isJoined) {
+        if (channelRef.current && (channelRef.current.state === "errored" || channelRef.current.state === "closed")) {
+          const supabase = supabaseRef.current;
+          supabase.removeChannel(channelRef.current);
+          const newChannel = supabase.channel(`party:${roomId}`, {
+            config: { broadcast: { self: false }, presence: { key: userName } },
+          });
+          newChannel
+            .on("broadcast", { event: "PLAY" }, () => {
+              if (mainVideoRef.current && mainVideoRef.current.paused) mainVideoRef.current.play().catch(() => {});
+              setAppWakeLock(true);
+            })
+            .on("broadcast", { event: "PAUSE" }, () => {
+              if (mainVideoRef.current && !mainVideoRef.current.paused) mainVideoRef.current.pause();
+              setAppWakeLock(false);
+            })
+            .on("broadcast", { event: "SEEK" }, ({ payload }) => {
+              if (mainVideoRef.current && Math.abs(mainVideoRef.current.currentTime - payload.time) > 1.5) {
+                mainVideoRef.current.currentTime = payload.time;
+              }
+            })
+            .on("broadcast", { event: "CHAT" }, ({ payload }) => {
+              setChatMessages((prev) => [...prev, payload]);
+            })
+            .subscribe(async (status) => {
+              if (status === "SUBSCRIBED") {
+                await newChannel.track({ userName, joinedAt: Date.now() });
+              }
+            });
+          channelRef.current = newChannel;
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("online", handleVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("online", handleVisibility);
+    };
+  }, [isJoined, roomId, userName]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -181,7 +402,7 @@ export default function MobileWatchPartyPage() {
   }, []);
 
   // Sync main video events
-  const handleLocalPlay = () => {
+  const handleLocalPlay = useCallback(() => {
     setAppWakeLock(true);
     if (channelRef.current && (channelRef.current as any).state === "joined") {
       channelRef.current.send({
@@ -190,9 +411,9 @@ export default function MobileWatchPartyPage() {
         payload: { time: mainVideoRef.current?.currentTime || 0, sender: userName },
       });
     }
-  };
+  }, [userName]);
 
-  const handleLocalPause = () => {
+  const handleLocalPause = useCallback(() => {
     setAppWakeLock(false);
     if (channelRef.current && (channelRef.current as any).state === "joined") {
       channelRef.current.send({
@@ -201,9 +422,9 @@ export default function MobileWatchPartyPage() {
         payload: { time: mainVideoRef.current?.currentTime || 0, sender: userName },
       });
     }
-  };
+  }, [userName]);
 
-  const handleLocalSeek = () => {
+  const handleLocalSeek = useCallback(() => {
     if (channelRef.current && (channelRef.current as any).state === "joined") {
       channelRef.current.send({
         type: "broadcast",
@@ -211,26 +432,29 @@ export default function MobileWatchPartyPage() {
         payload: { time: mainVideoRef.current?.currentTime || 0, sender: userName },
       });
     }
-  };
+  }, [userName]);
 
   // Send Chat
-  const sendChatMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputMsg.trim()) return;
-    const msg = {
-      sender: userName,
-      text: inputMsg.trim(),
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-    setChatMessages((prev) => [...prev, msg]);
-    if (channelRef.current && (channelRef.current as any).state === "joined") {
-      channelRef.current.send({ type: "broadcast", event: "CHAT", payload: msg });
-    }
-    setInputMsg("");
-  };
+  const sendChatMessage = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!inputMsg.trim()) return;
+      const msg = {
+        sender: userName,
+        text: inputMsg.trim(),
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+      setChatMessages((prev) => [...prev, msg]);
+      if (channelRef.current && (channelRef.current as any).state === "joined") {
+        channelRef.current.send({ type: "broadcast", event: "CHAT", payload: msg });
+      }
+      setInputMsg("");
+    },
+    [inputMsg, userName]
+  );
 
   // Toggle Camera
-  const toggleCam = async () => {
+  const toggleCam = useCallback(async () => {
     const next = !camEnabled;
     setCamEnabled(next);
     if (!next) {
@@ -243,16 +467,18 @@ export default function MobileWatchPartyPage() {
       if (livekitRoomRef.current) await livekitRoomRef.current.localParticipant.setCameraEnabled(false);
     } else {
       if (livekitRoomRef.current && livekitRoomRef.current.state === ConnectionState.Connected) {
-        const track = await createLocalVideoTrack({ resolution: { width: 320, height: 240 } });
+        const track = await createLocalVideoTrack({
+          resolution: { width: 320, height: 240, frameRate: 20 },
+        });
         localVideoTrackRef.current = track;
         if (localVideoRef.current) track.attach(localVideoRef.current);
         await livekitRoomRef.current.localParticipant.publishTrack(track);
       }
     }
-  };
+  }, [camEnabled]);
 
   // Toggle Mic
-  const toggleMic = async () => {
+  const toggleMic = useCallback(async () => {
     const next = !micEnabled;
     setMicEnabled(next);
     if (!next) {
@@ -264,30 +490,45 @@ export default function MobileWatchPartyPage() {
       if (livekitRoomRef.current) await livekitRoomRef.current.localParticipant.setMicrophoneEnabled(false);
     } else {
       if (livekitRoomRef.current && livekitRoomRef.current.state === ConnectionState.Connected) {
-        const track = await createLocalAudioTrack();
+        const track = await createLocalAudioTrack({
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        });
         localAudioTrackRef.current = track;
         await livekitRoomRef.current.localParticipant.publishTrack(track);
       }
     }
-  };
+  }, [micEnabled]);
 
-  // Touch drag handlers
+  // Hardware-Accelerated Touch Drag Handlers (Direct DOM ref transform + rAF)
   const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
     isDragging.current = true;
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
     const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-    dragStart.current = { x: clientX, y: clientY, posX: pos.x, posY: pos.y };
+    dragStart.current = { x: clientX, y: clientY, posX: posRef.current.x, posY: posRef.current.y };
   };
 
   const handleTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
     if (!isDragging.current) return;
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
     const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-    const deltaX = clientX - dragStart.current.x;
-    const deltaY = clientY - dragStart.current.y;
-    setPos({
-      x: Math.max(8, Math.min(window.innerWidth - 140, dragStart.current.posX + deltaX)),
-      y: Math.max(8, Math.min(window.innerHeight - 180, dragStart.current.posY + deltaY)),
+    latestMoveEvent.current = { clientX, clientY };
+
+    if (isRafScheduled.current) return;
+    isRafScheduled.current = true;
+
+    requestAnimationFrame(() => {
+      isRafScheduled.current = false;
+      if (!isDragging.current || !latestMoveEvent.current || !pipWidgetRef.current) return;
+      const deltaX = latestMoveEvent.current.clientX - dragStart.current.x;
+      const deltaY = latestMoveEvent.current.clientY - dragStart.current.y;
+
+      const newX = Math.max(8, Math.min(window.innerWidth - 140, dragStart.current.posX + deltaX));
+      const newY = Math.max(8, Math.min(window.innerHeight - 180, dragStart.current.posY + deltaY));
+
+      posRef.current = { x: newX, y: newY };
+      pipWidgetRef.current.style.transform = `translate3d(${newX}px, ${newY}px, 0)`;
     });
   };
 
@@ -306,7 +547,9 @@ export default function MobileWatchPartyPage() {
           />
           <div>
             <h1 className="text-2xl font-bold">Join JustUS Party</h1>
-            <p className="text-xs text-slate-400 mt-1">Room: <span className="text-indigo-400 font-mono">{roomId}</span></p>
+            <p className="text-xs text-slate-400 mt-1">
+              Room: <span className="text-indigo-400 font-mono">{roomId}</span>
+            </p>
           </div>
           <div className="space-y-4">
             <input
@@ -318,7 +561,7 @@ export default function MobileWatchPartyPage() {
             />
             <button
               onClick={startParty}
-              className="w-full py-3.5 bg-gradient-to-r from-red-600 to-indigo-600 rounded-xl font-bold text-sm shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-transform"
+              className="w-full py-3.5 bg-gradient-to-r from-red-600 to-indigo-600 rounded-xl font-bold text-sm shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-transform text-white"
             >
               Start Watch Party 🍿
             </button>
@@ -336,61 +579,33 @@ export default function MobileWatchPartyPage() {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 1. Main Streaming Player / In-App Browser View */}
-      {service === "generic" || videoUrl.includes(".mp4") ? (
-        <video
-          ref={mainVideoRef}
-          src={videoUrl}
-          controls
-          playsInline
-          onPlay={handleLocalPlay}
-          onPause={handleLocalPause}
-          onSeeked={handleLocalSeek}
-          onEnded={() => setAppWakeLock(false)}
-          onEmptied={() => setAppWakeLock(false)}
-          className="w-full h-full object-contain bg-black"
-        />
-      ) : (
-        <iframe
-          src={videoUrl}
-          allow="autoplay; encrypted-media; fullscreen"
-          className="w-full h-full border-0 bg-black"
-        />
-      )}
+      {/* 1. Main Streaming Player */}
+      <MainPlayer
+        service={service}
+        videoUrl={videoUrl}
+        videoRef={mainVideoRef}
+        onPlay={handleLocalPlay}
+        onPause={handleLocalPause}
+        onSeek={handleLocalSeek}
+      />
 
       {/* 2. Top App Bar */}
-      <header className="absolute top-0 left-0 right-0 h-14 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between px-4 z-40">
-        <div className="flex items-center space-x-2">
-          <img
-            src="/logo.png"
-            alt="JustUS"
-            className="w-7 h-7 rounded-lg object-cover border border-white/20"
-          />
-          <span className="text-xs font-bold text-white tracking-wider">JUSTUS PARTY</span>
-        </div>
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={() => setIsChatOpen(!isChatOpen)}
-            className={`p-2 rounded-full border transition-colors ${isChatOpen ? "bg-indigo-600 border-indigo-500" : "bg-black/60 border-white/20"}`}
-          >
-            💬
-          </button>
-          {isPipClosed && (
-            <button
-              onClick={() => setIsPipClosed(false)}
-              className="px-3 py-1.5 rounded-full bg-emerald-600/80 border border-emerald-400 text-xs font-semibold flex items-center gap-1.5"
-            >
-              📹 Reopen Cam
-            </button>
-          )}
-        </div>
-      </header>
+      <PartyHeader
+        isChatOpen={isChatOpen}
+        isPipClosed={isPipClosed}
+        onToggleChat={() => setIsChatOpen((prev) => !prev)}
+        onReopenPip={() => setIsPipClosed(false)}
+      />
 
-      {/* 3. Floating, Draggable, Minimizable & Closeable Video Call Widget */}
+      {/* 3. Floating, Draggable, Minimizable & Closeable Video Call Widget (Hardware Layer) */}
       {!isPipClosed && (
         <div
-          style={{ transform: `translate3d(${pos.x}px, ${pos.y}px, 0)` }}
-          className="absolute top-0 left-0 z-50 transition-shadow select-none touch-none"
+          ref={pipWidgetRef}
+          style={{
+            transform: `translate3d(${posRef.current.x}px, ${posRef.current.y}px, 0)`,
+            willChange: "transform",
+          }}
+          className="absolute top-0 left-0 z-50 select-none touch-none"
         >
           {isPipMinimized ? (
             /* Minimized Bubble */
@@ -406,8 +621,8 @@ export default function MobileWatchPartyPage() {
               </div>
             </div>
           ) : (
-            /* Full Floating Video Tile */
-            <div className="w-40 sm:w-48 bg-[#131524]/95 backdrop-blur-md border border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            /* Full Floating Video Tile (Zero backdrop-blur GPU overhead) */
+            <div className="w-40 sm:w-48 bg-[#131524] border border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
               {/* Header Bar */}
               <div
                 onMouseDown={handleTouchStart}
@@ -465,45 +680,15 @@ export default function MobileWatchPartyPage() {
       )}
 
       {/* 4. Slide-Over Real-Time Chat Drawer */}
-      {isChatOpen && (
-        <aside className="absolute top-0 right-0 bottom-0 w-72 bg-[#0E101D]/95 backdrop-blur-xl border-l border-white/10 z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
-          <div className="h-14 border-b border-white/10 px-4 flex items-center justify-between">
-            <span className="font-bold text-xs text-white">Party Chat</span>
-            <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-white text-sm">
-              ✕
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
-            {chatMessages.length === 0 ? (
-              <div className="text-center text-slate-500 text-xs py-8">No messages yet. Say hi! 👋</div>
-            ) : (
-              chatMessages.map((msg, i) => (
-                <div key={i} className={`p-2.5 rounded-xl text-xs ${msg.sender === userName ? "bg-indigo-600/30 ml-4" : "bg-white/5 mr-4"}`}>
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
-                    <span className="font-semibold text-indigo-300">{msg.sender}</span>
-                    <span>{msg.time}</span>
-                  </div>
-                  <p className="text-white break-words">{msg.text}</p>
-                </div>
-              ))
-            )}
-          </div>
-
-          <form onSubmit={sendChatMessage} className="p-3 border-t border-white/10 flex gap-2">
-            <input
-              type="text"
-              value={inputMsg}
-              onChange={(e) => setInputMsg(e.target.value)}
-              placeholder="Type a message..."
-              className="flex-1 bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-            />
-            <button type="submit" className="px-3.5 py-2 bg-indigo-600 rounded-xl text-xs font-bold">
-              Send
-            </button>
-          </form>
-        </aside>
-      )}
+      <ChatDrawer
+        isOpen={isChatOpen}
+        userName={userName}
+        messages={chatMessages}
+        inputMsg={inputMsg}
+        onClose={() => setIsChatOpen(false)}
+        onInputChange={setInputMsg}
+        onSendMessage={sendChatMessage}
+      />
     </div>
   );
 }

@@ -143,13 +143,14 @@ export class FloatingCallUI {
           right: 24px;
           z-index: 2147483647;
           width: 280px;
-          background: rgba(18, 20, 31, 0.95);
-          backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.15);
+          background: #12141F;
+          border: 1px solid rgba(255, 255, 255, 0.18);
           border-radius: 16px;
-          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
           overflow: hidden;
           user-select: none;
+          transform: translate3d(0, 0, 0);
+          will-change: transform;
         }
 
         .panel-header {
@@ -386,6 +387,8 @@ export class FloatingCallUI {
     let isDragging = false;
     let startX = 0, startY = 0;
     let initialLeft = 0, initialTop = 0;
+    let isRafScheduled = false;
+    let latestMouseEvent: MouseEvent | null = null;
 
     handle.addEventListener("mousedown", (e) => {
       isDragging = true;
@@ -401,10 +404,18 @@ export class FloatingCallUI {
 
     window.addEventListener("mousemove", (e) => {
       if (!isDragging) return;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      panel.style.left = `${Math.max(10, initialLeft + dx)}px`;
-      panel.style.top = `${Math.max(10, initialTop + dy)}px`;
+      latestMouseEvent = e;
+      if (isRafScheduled) return;
+      isRafScheduled = true;
+
+      requestAnimationFrame(() => {
+        isRafScheduled = false;
+        if (!isDragging || !latestMouseEvent) return;
+        const dx = latestMouseEvent.clientX - startX;
+        const dy = latestMouseEvent.clientY - startY;
+        panel.style.left = `${Math.max(10, initialLeft + dx)}px`;
+        panel.style.top = `${Math.max(10, initialTop + dy)}px`;
+      });
     });
 
     window.addEventListener("mouseup", () => {

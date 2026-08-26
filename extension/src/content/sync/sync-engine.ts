@@ -496,19 +496,19 @@ export class SyncEngine {
           await this.adapter.seek(expectedTime);
           this.adapter.setPlaybackRate(1.0);
         });
-      } else if (delta > 0.08) {
-        // Viewer is slightly behind host: speed up seamlessly
-        this.adapter.setPlaybackRate(1.08);
-      } else if (delta < -0.08) {
-        // Viewer is slightly ahead of host: slow down seamlessly
-        this.adapter.setPlaybackRate(0.92);
+      } else if (delta > 0.15) {
+        // Viewer is slightly behind host: speed up gently without audio distortion
+        this.adapter.setPlaybackRate(1.04);
+      } else if (delta < -0.15) {
+        // Viewer is slightly ahead of host: slow down gently without audio distortion
+        this.adapter.setPlaybackRate(0.96);
       } else {
-        // Frame-perfect sync (within 80ms)
+        // Frame-perfect sync (within 150ms deadband)
         this.adapter.setPlaybackRate(1.0);
       }
     } else {
       this.adapter.setPlaybackRate(1.0);
-      if (drift > 0.15 && expectedTime > 0.5) {
+      if (drift > 0.2 && expectedTime > 0.5) {
         this.withSyncLock(async () => {
           await this.adapter.seek(expectedTime);
           if (this.adapter.isPlaying()) {
