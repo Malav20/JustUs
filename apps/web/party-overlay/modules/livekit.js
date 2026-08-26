@@ -108,10 +108,9 @@
   }
 
   async function publishLocalCamera(room) {
-    const capturePreset = getVideoCapturePreset();
     localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
       facingMode: currentFacingMode || "user",
-      resolution: capturePreset,
+      resolution: { width: 480, height: 360, frameRate: 24 },
     });
     const localVideoEl = shadow.getElementById("ju-local-video");
     if (localVideoEl && localVideoTrack) {
@@ -155,7 +154,7 @@
             videoCodec: "vp8",
           },
           videoCaptureDefaults: {
-            resolution: getVideoCapturePreset(),
+            resolution: { width: 480, height: 360, frameRate: 24 },
           },
         });
         livekitRoom = room;

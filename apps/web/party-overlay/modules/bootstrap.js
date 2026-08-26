@@ -7,6 +7,7 @@
 // (the SYNC object). Change both together.
 
 (function () {
+  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-restore-1";
   if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {
     if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === "function") {
       window.__JUSTUS_ENSURE_MOUNTED__();
@@ -102,6 +103,7 @@
 
   // ── Touch / mobile helpers (iPad WKWebView + YouTube gesture competition) ──
   const IS_IOS =
+    !!window.__JUSTUS_NATIVE_IOS__ ||
     /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const IS_TOUCH_DEVICE = IS_IOS || navigator.maxTouchPoints > 0;
@@ -138,12 +140,7 @@
   }
 
   function getVideoCapturePreset() {
-    // Match pre-optimization preset that worked on iPad (336f86d regressed touch to 320x240).
-    if (IS_TOUCH_DEVICE) {
-      const lk = window.LivekitClient;
-      if (lk?.VideoPresets?.h216?.resolution) return lk.VideoPresets.h216.resolution;
-      return { width: 384, height: 216, frameRate: 15 };
-    }
+    // Proven working capture from pre-336f86d overlay (iPad WKWebView).
     return { width: 480, height: 360, frameRate: 24 };
   }
 
@@ -165,12 +162,6 @@
 
   function attachVideoTrack(track, videoEl, isLocalPreview) {
     if (!track || !videoEl) return;
-    // detach() before attach breaks local camera preview on iOS WKWebView (faea8ba regression).
-    if (!isLocalPreview) {
-      try {
-        track.detach();
-      } catch (e) {}
-    }
     try {
       track.attach(videoEl);
     } catch (e) {
@@ -181,41 +172,14 @@
 
   function attachLocalPreview(track, videoEl) {
     if (!track || !videoEl) return;
-    const mediaTrack = track.mediaStreamTrack;
-    if (!mediaTrack) return;
-
-    // Skip re-bind — re-attaching causes iOS WKWebView preview flicker.
-    if (
-      boundLocalPreviewTrack === mediaTrack &&
-      videoEl.srcObject &&
-      videoEl.srcObject.getVideoTracks()[0] === mediaTrack
-    ) {
-      videoEl.classList.remove("hidden");
-      return;
-    }
-    boundLocalPreviewTrack = mediaTrack;
-
     videoEl.muted = true;
     videoEl.setAttribute("playsinline", "true");
     videoEl.setAttribute("webkit-playsinline", "true");
-
-    if (IS_IOS) {
-      // LiveKit track.attach() flickers in Shadow DOM on WKWebView — use srcObject only.
-      try {
-        videoEl.srcObject = new MediaStream([mediaTrack]);
-      } catch (e) {
-        console.warn("[JustUS] local srcObject failed:", e);
-      }
-    } else {
-      try {
-        track.attach(videoEl);
-      } catch (e) {
-        console.warn("[JustUS] local preview attach failed:", e);
-      }
+    try {
+      track.attach(videoEl);
+    } catch (e) {
+      console.warn("[JustUS] local preview attach failed:", e);
     }
-
     videoEl.classList.remove("hidden");
-    videoEl.play().catch(() => {
-      setTimeout(() => videoEl.play().catch(() => {}), 150);
-    });
+    videoEl.play().catch(() => {});
   }

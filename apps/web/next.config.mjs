@@ -5,6 +5,12 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: "/party-overlay.js",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, max-age=0" },
+        ],
+      },
+      {
         source: "/api/:path*",
         headers: [
           { key: "Access-Control-Allow-Credentials", value: "true" },
