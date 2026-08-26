@@ -26,6 +26,7 @@ export class SyncEngine {
   // Handshake & Feedback loop prevention locks
   private isSyncActionInProgress = false;
   private isInitialSyncCompleted = false;
+  private lastUserActionTime = 0;
   private heartbeatTimer: any = null;
   private stateRequestRetryTimer: any = null;
 
@@ -361,12 +362,14 @@ export class SyncEngine {
 
     if (event === "play") {
       console.log(`[JustUS] Local PLAY at ${time.toFixed(2)}s -> Outbound broadcast`);
+      this.lastUserActionTime = Date.now();
       this.setScreenWakeLock(true);
       this.broadcast("PLAY", payload);
       this.persistRoomState(time, true);
       if (this.onPlaybackAction) this.onPlaybackAction("play", time, this.userName);
     } else if (event === "pause") {
       console.log(`[JustUS] Local PAUSE at ${time.toFixed(2)}s -> Outbound broadcast`);
+      this.lastUserActionTime = Date.now();
       this.setScreenWakeLock(false);
       this.broadcast("PAUSE", payload);
       this.persistRoomState(time, false);
@@ -374,6 +377,7 @@ export class SyncEngine {
     } else if (event === "seeked") {
       if (time <= 1.0) return; // Suppress stream startup seek to 00:00
       console.log(`[JustUS] Local SEEK to ${time.toFixed(2)}s -> Outbound broadcast`);
+      this.lastUserActionTime = Date.now();
       this.broadcast("SEEK", payload);
       this.persistRoomState(time, this.adapter.isPlaying());
       if (this.onPlaybackAction) this.onPlaybackAction("seek", time, this.userName);
@@ -406,6 +410,7 @@ export class SyncEngine {
     const senderName = payload.sender || "Friend";
     console.log(`[JustUs] Remote PLAY received from ${senderName} at ${payload.time.toFixed(2)}s`);
     this.isInitialSyncCompleted = true;
+    this.lastUserActionTime = Date.now();
     this.setScreenWakeLock(true);
     if (this.onPlaybackAction) this.onPlaybackAction("play", payload.time, senderName);
     this.withSyncLock(async () => {
@@ -423,6 +428,7 @@ export class SyncEngine {
     const senderName = payload.sender || "Friend";
     console.log(`[JustUs] Remote PAUSE received from ${senderName} at ${payload.time.toFixed(2)}s`);
     this.isInitialSyncCompleted = true;
+    this.lastUserActionTime = Date.now();
     this.setScreenWakeLock(false);
     if (this.onPlaybackAction) this.onPlaybackAction("pause", payload.time, senderName);
     this.withSyncLock(async () => {
@@ -441,6 +447,7 @@ export class SyncEngine {
     const senderName = payload.sender || "Friend";
     console.log(`[JustUs] Remote SEEK received from ${senderName} to ${payload.time.toFixed(2)}s`);
     this.isInitialSyncCompleted = true;
+    this.lastUserActionTime = Date.now();
     if (this.onPlaybackAction) this.onPlaybackAction("seek", payload.time, senderName);
     this.withSyncLock(async () => {
       await this.adapter.seek(payload.time);
@@ -449,6 +456,12 @@ export class SyncEngine {
 
   private handleRemoteHeartbeat(payload: SyncPayload) {
     if (this.isSyncActionInProgress) return;
+
+    // Grace window: If an explicit play/pause/seek occurred in the last 3.5s,
+    // ignore passive heartbeat state to allow peers/local stream startup & buffering
+    if (Date.now() - this.lastUserActionTime < 3500) {
+      return;
+    }
 
     if (payload.videoUrl && !this.isHost) {
       const currentUrl = window.location.href.split("#")[0];

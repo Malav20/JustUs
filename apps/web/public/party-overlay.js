@@ -94,9 +94,19 @@
     (document.head || document.documentElement).appendChild(script);
   }
 
-  // Detect Video Player (YouTube, Netflix API or HTML5 video)
+  // Detect Video Player (YouTube, Netflix API, Prime, or HTML5 video)
   function findVideoElement() {
-    return document.querySelector(".html5-main-video, .watch-video video, .sizing-wrapper video, video");
+    return document.querySelector(".html5-main-video, .watch-video video, .sizing-wrapper video, .webPlayerUIContainer video, .rendererContainer video, video");
+  }
+
+  function getYouTubePlayer() {
+    try {
+      const ytp = document.getElementById("movie_player") || document.querySelector(".html5-video-player");
+      if (ytp && typeof ytp.playVideo === "function") {
+        return ytp;
+      }
+    } catch (e) {}
+    return null;
   }
 
   function getNetflixPlayer() {
@@ -195,6 +205,7 @@
 
   function playVideo() {
     setWakeLock(true);
+    // 1. Netflix Player API
     const netflixPlayer = getNetflixPlayer();
     if (netflixPlayer && typeof netflixPlayer.play === "function") {
       try {
@@ -202,20 +213,57 @@
         return;
       } catch (e) {}
     }
+
+    // 2. YouTube Player API
+    const ytp = getYouTubePlayer();
+    if (ytp) {
+      try {
+        ytp.playVideo();
+      } catch (e) {}
+    }
+
+    // YouTube Large Play Button (unstarted stream overlay)
+    const ytpLargePlay = document.querySelector(".ytp-large-play-button, .ytp-cued-thumbnail-overlay-image");
+    if (ytpLargePlay) {
+      try {
+        ytpLargePlay.click();
+      } catch (e) {}
+    }
+
+    // YouTube Play/Pause Toggle button
+    const ytpPlayBtn = document.querySelector(".ytp-play-button, button.player-control-play-pause-icon, .player-controls-middle button");
     const v = findVideoElement();
+    if (ytpPlayBtn && v && v.paused) {
+      try {
+        ytpPlayBtn.click();
+      } catch (e) {}
+    }
+
+    // Prime Video Play Button
+    const primePlayBtn = document.querySelector("button.paused, button[aria-label*='Play'], button.atvwebplayersdk-playpause-button");
+    if (primePlayBtn && v && v.paused) {
+      try {
+        primePlayBtn.click();
+      } catch (e) {}
+    }
+
+    // 3. HTML5 Video Element Fallback
     if (v) {
-      v.volume = 1.0;
-      v.muted = false;
       if (v.paused) {
-        v.play().catch(() => {});
-        const playBtn = document.querySelector("button[data-uia='control-play-pause']");
-        if (playBtn) playBtn.click();
+        const playPromise = v.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            const playBtn = document.querySelector("button[data-uia='control-play-pause'], .ytp-play-button, .ytp-large-play-button");
+            if (playBtn) playBtn.click();
+          });
+        }
       }
     }
   }
 
   function pauseVideo() {
     setWakeLock(false);
+    // 1. Netflix Player API
     const netflixPlayer = getNetflixPlayer();
     if (netflixPlayer && typeof netflixPlayer.pause === "function") {
       try {
@@ -223,9 +271,37 @@
         return;
       } catch (e) {}
     }
+
+    // 2. YouTube Player API
+    const ytp = getYouTubePlayer();
+    if (ytp) {
+      try {
+        ytp.pauseVideo();
+      } catch (e) {}
+    }
+
     const v = findVideoElement();
+    // YouTube Play/Pause Toggle button
+    const ytpPlayBtn = document.querySelector(".ytp-play-button");
+    if (ytpPlayBtn && v && !v.paused) {
+      try {
+        ytpPlayBtn.click();
+      } catch (e) {}
+    }
+
+    // Prime Video Pause Button
+    const primePauseBtn = document.querySelector("button[aria-label*='Pause']");
+    if (primePauseBtn && v && !v.paused) {
+      try {
+        primePauseBtn.click();
+      } catch (e) {}
+    }
+
+    // 3. HTML5 Video Element
     if (v && !v.paused) {
-      v.pause();
+      try {
+        v.pause();
+      } catch (e) {}
       const playBtn = document.querySelector("button[data-uia='control-play-pause']");
       if (playBtn) playBtn.click();
     }
@@ -233,6 +309,7 @@
 
   function seekVideo(timeInSeconds) {
     if (timeInSeconds < 0.5) return;
+    // 1. Netflix Player API
     const netflixPlayer = getNetflixPlayer();
     if (netflixPlayer && typeof netflixPlayer.seek === "function") {
       try {
@@ -240,6 +317,16 @@
         return;
       } catch (e) {}
     }
+
+    // 2. YouTube Player API
+    const ytp = getYouTubePlayer();
+    if (ytp && typeof ytp.seekTo === "function") {
+      try {
+        ytp.seekTo(timeInSeconds, true);
+      } catch (e) {}
+    }
+
+    // 3. HTML5 Video Element
     const v = findVideoElement();
     if (v) {
       try {
@@ -252,6 +339,12 @@
   function setPlaybackRate(rate) {
     if (Math.abs(currentPlaybackRate - rate) < 0.01) return;
     currentPlaybackRate = rate;
+    const ytp = getYouTubePlayer();
+    if (ytp && typeof ytp.setPlaybackRate === "function") {
+      try {
+        ytp.setPlaybackRate(rate);
+      } catch (e) {}
+    }
     const v = findVideoElement();
     if (v) {
       try {
@@ -265,6 +358,11 @@
     if (netflixPlayer && typeof netflixPlayer.getCurrentTime === "function") {
       return netflixPlayer.getCurrentTime() / 1000;
     }
+    const ytp = getYouTubePlayer();
+    if (ytp && typeof ytp.getCurrentTime === "function") {
+      const t = ytp.getCurrentTime();
+      if (typeof t === "number" && !isNaN(t) && t > 0) return t;
+    }
     const v = findVideoElement();
     return v ? v.currentTime : 0;
   }
@@ -273,6 +371,13 @@
     const netflixPlayer = getNetflixPlayer();
     if (netflixPlayer && typeof netflixPlayer.isPlaying === "function") {
       return netflixPlayer.isPlaying();
+    }
+    const ytp = getYouTubePlayer();
+    if (ytp && typeof ytp.getPlayerState === "function") {
+      const s = ytp.getPlayerState();
+      // 1 = PLAYING, 3 = BUFFERING
+      if (s === 1 || s === 3) return true;
+      if (s === 2 || s === 0 || s === -1) return false;
     }
     const v = findVideoElement();
     return Boolean(v && !v.paused && !v.ended);
@@ -661,7 +766,29 @@
       background: linear-gradient(135deg, #6366F1, #4F46E5);
       box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
     }
+    .action-btn.emerald {
+      background: linear-gradient(135deg, #10B981, #059669);
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+    }
     .action-btn:active { transform: scale(0.98); }
+
+    .action-header-btn {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #F87171;
+      padding: 5px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    .action-header-btn:active {
+      transform: scale(0.95);
+    }
 
     .party-active-card {
       background: rgba(255, 255, 255, 0.04);
@@ -1191,6 +1318,8 @@
           throw new Error("Could not connect to video server. Please check your network.");
         }
 
+        const { token, wsUrl } = tokenResult;
+
         const room = new window.LivekitClient.Room({
           adaptiveStream: true,
           dynacast: true,
@@ -1424,6 +1553,12 @@
         videoPillText.textContent = "📹 Video Call";
       }
     }
+
+    const drawerVideoBtn = shadow.getElementById("ju-drawer-video-btn");
+    if (drawerVideoBtn) {
+      drawerVideoBtn.className = `action-btn ${isVideoCallActive ? "emerald" : "indigo"}`;
+      drawerVideoBtn.textContent = isVideoCallActive ? "📹 Open Video PIP Window" : "📹 Start / Join Video Call";
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -1540,7 +1675,7 @@
         }
       });
     } else {
-      // Active Party Screen (Event feed, Presence, Chat, Sync)
+      // Active Party Screen (Event feed, Presence, Chat, Sync, Video Call)
       const inviteUrl = `${API_BASE}/join/${activeRoomId}`;
       drawer.innerHTML = `
         <div class="drawer-header">
@@ -1549,8 +1684,9 @@
             <span class="status-dot"></span>
             <span>Party Active</span>
           </div>
-          <div style="display: flex; gap: 6px;">
-            <button class="close-btn" id="ju-leave-party" title="Leave Party" style="color: #F87171;">✕</button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button class="action-header-btn" id="ju-leave-party" title="Leave Party">Leave</button>
+            <button class="close-btn" id="ju-minimize-drawer" title="Minimize / Hide Sidebar">✕</button>
           </div>
         </div>
 
@@ -1564,6 +1700,22 @@
               <span style="color: #94A3B8; truncate; max-width: 170px;">${inviteUrl}</span>
               <button class="copy-btn" id="ju-copy-invite">📋 Copy</button>
             </div>
+          </div>
+
+          <!-- Video Call Section Inside Sidebar -->
+          <div class="party-active-card" style="background: ${isVideoCallActive ? 'rgba(16, 185, 129, 0.08)' : 'rgba(99, 102, 241, 0.08)'}; border-color: ${isVideoCallActive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(99, 102, 241, 0.3)'};">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="status-dot ${isVideoCallActive ? 'active' : 'idle'}"></span>
+                <span style="font-size: 11px; font-weight: 700; color: #F1F5F9;">FaceTime / Video Call</span>
+              </div>
+              <span style="font-size: 10px; font-weight: 600; color: ${isVideoCallActive ? '#10B981' : '#A5B4FC'};">
+                ${isVideoCallActive ? "🟢 Active" : "Ready"}
+              </span>
+            </div>
+            <button class="action-btn ${isVideoCallActive ? 'emerald' : 'indigo'}" id="ju-drawer-video-btn" style="padding: 10px; font-size: 12px; margin-top: 4px;">
+              ${isVideoCallActive ? "📹 Open Video PIP Window" : "📹 Start / Join Video Call"}
+            </button>
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 700; color: #94A3B8; padding: 0 2px;">
@@ -1589,7 +1741,11 @@
         </div>
       `;
 
+      shadow.getElementById("ju-minimize-drawer")?.addEventListener("click", (e) => closeDrawer(e));
       shadow.getElementById("ju-leave-party")?.addEventListener("click", leaveParty);
+      shadow.getElementById("ju-drawer-video-btn")?.addEventListener("click", () => {
+        toggleVideoCallWindow();
+      });
       shadow.getElementById("ju-copy-invite")?.addEventListener("click", () => {
         navigator.clipboard.writeText(inviteUrl);
         const btn = shadow.getElementById("ju-copy-invite");
@@ -1907,10 +2063,13 @@
     }
   }
 
+  let lastUserActionTime = 0;
+
   function handleRemotePlay(payload) {
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
     addEventLog(`▶️ Played video at ${timeStr}`, sender);
+    lastUserActionTime = Date.now();
     isSyncActionInProgress = true;
     const current = getCurrentVideoTime();
     const latency = Math.max(0, (Date.now() - (payload.sentAt || Date.now())) / 1000);
@@ -1926,6 +2085,7 @@
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
     addEventLog(`⏸️ Paused video at ${timeStr}`, sender);
+    lastUserActionTime = Date.now();
     isSyncActionInProgress = true;
     pauseVideo();
     if (payload.time > 1.0 && Math.abs(getCurrentVideoTime() - payload.time) > 0.25) {
@@ -1942,6 +2102,7 @@
     if (Math.abs(current - payload.time) < 0.35) return;
 
     addEventLog(`⏩ Jumped to ${timeStr}`, sender);
+    lastUserActionTime = Date.now();
     isSyncActionInProgress = true;
     seekVideo(payload.time);
     setTimeout(() => (isSyncActionInProgress = false), 1000);
@@ -1949,6 +2110,10 @@
 
   function handleRemoteHeartbeat(payload) {
     if (isSyncActionInProgress || isHost) return;
+
+    // Grace window: If an explicit play/pause/seek occurred in the last 3.5s,
+    // ignore passive heartbeat state to allow local/peer stream startup and buffering
+    if (Date.now() - lastUserActionTime < 3500) return;
 
     if (payload.videoUrl && !isHost) {
       const currentUrl = window.location.href;
@@ -2068,6 +2233,7 @@
     v.addEventListener("play", () => {
       setWakeLock(true);
       if (isSyncActionInProgress || !activeChannel) return;
+      lastUserActionTime = Date.now();
       const time = v.currentTime;
       activeChannel.send({
         type: "broadcast",
@@ -2084,6 +2250,7 @@
     v.addEventListener("pause", () => {
       setWakeLock(false);
       if (isSyncActionInProgress || !activeChannel) return;
+      lastUserActionTime = Date.now();
       const time = v.currentTime;
       activeChannel.send({
         type: "broadcast",
@@ -2105,6 +2272,7 @@
       if (isSyncActionInProgress || !activeChannel) return;
       const time = v.currentTime;
       if (time < 1.0) return; // Suppress initial stream startup seek to 00:00
+      lastUserActionTime = Date.now();
       activeChannel.send({
         type: "broadcast",
         event: "SEEK",
