@@ -162,21 +162,25 @@ export class TelepartySidebarUI {
   private attachVideoToElement(track: RemoteTrack | LocalVideoTrack, el: HTMLVideoElement, isLocal = false) {
     const mediaTrack = track.mediaStreamTrack;
     if (isLocal && mediaTrack) {
-      if (
+      const sameTrack =
         this.boundLocalPreviewTrack === mediaTrack &&
         el.srcObject instanceof MediaStream &&
-        el.srcObject.getVideoTracks()[0] === mediaTrack
-      ) {
+        el.srcObject.getVideoTracks()[0] === mediaTrack;
+      if (sameTrack && !el.paused && el.readyState >= 2) {
         return;
       }
       this.boundLocalPreviewTrack = mediaTrack;
       el.muted = true;
+      el.playsInline = true;
       el.setAttribute("playsinline", "true");
       el.setAttribute("webkit-playsinline", "true");
-      try {
-        el.srcObject = new MediaStream([mediaTrack]);
-      } catch (e) {}
-      el.play().catch(() => setTimeout(() => el.play().catch(() => {}), 200));
+      el.controls = false;
+      const stream = new MediaStream([mediaTrack]);
+      el.srcObject = stream;
+      setTimeout(() => {
+        el.srcObject = stream;
+        el.play().catch(() => setTimeout(() => el.play().catch(() => {}), 200));
+      }, 0);
       return;
     }
 
@@ -493,7 +497,6 @@ export class TelepartySidebarUI {
     if (!this.shadow) return;
 
     const tabBtn = this.shadow.getElementById("btn-tab-toggle");
-    const collapseBtn = this.shadow.getElementById("btn-collapse");
     const shareBtn = this.shadow.getElementById("btn-share-link");
     const leaveBtn = this.shadow.getElementById("btn-leave-party");
     const toggleVideoCallBtn = this.shadow.getElementById("btn-toggle-video-call");
@@ -526,13 +529,13 @@ export class TelepartySidebarUI {
         this.sidebarEl.classList.toggle("collapsed", !this.isOpen);
         this.adjustPageLayout(this.isOpen);
       }
+      if (tabBtn) {
+        tabBtn.style.transform = this.isOpen ? "" : "rotate(180deg)";
+        tabBtn.title = this.isOpen ? "Hide sidebar" : "Show sidebar";
+      }
     };
 
-    tabBtn?.addEventListener("click", toggle);
-    collapseBtn?.addEventListener("click", toggle);
-
-    if (tabBtn) bindInstantTap(tabBtn, () => toggle(), { stopPropagation: true });
-    if (collapseBtn) bindInstantTap(collapseBtn, () => toggle(), { stopPropagation: true });
+    if (tabBtn) bindInstantTap(tabBtn, () => toggle(), { stopPropagation: true, preventDefault: true });
 
     // Share link
     const copyInvite = () => {
@@ -550,7 +553,6 @@ export class TelepartySidebarUI {
       if (this.onLeaveParty) this.onLeaveParty();
       this.destroy();
     };
-    leaveBtn?.addEventListener("click", leave);
     if (leaveBtn) bindInstantTap(leaveBtn, leave, { stopPropagation: true });
 
     micBtn?.addEventListener("click", async () => {
@@ -565,11 +567,25 @@ export class TelepartySidebarUI {
 
       try {
         if (!this.cameraEnabled) {
-          if (this.localVideoEl) this.localVideoEl.classList.add("hidden");
+          const pub = this.livekitRoom.localParticipant.getTrackPublication(Track.Source.Camera);
+          const track = pub?.track as LocalVideoTrack | undefined;
+          if (track?.mediaStreamTrack) track.mediaStreamTrack.enabled = false;
+          if (this.localVideoEl) {
+            this.localVideoEl.style.visibility = "hidden";
+            this.localVideoEl.style.opacity = "0";
+          }
           await this.livekitRoom.localParticipant.setCameraEnabled(false);
         } else {
           await this.livekitRoom.localParticipant.setCameraEnabled(true);
-          if (this.localVideoEl) this.localVideoEl.classList.remove("hidden");
+          const pub = this.livekitRoom.localParticipant.getTrackPublication(Track.Source.Camera);
+          const track = pub?.track as LocalVideoTrack | undefined;
+          if (track?.mediaStreamTrack) track.mediaStreamTrack.enabled = true;
+          if (this.localVideoEl && track) {
+            this.localVideoEl.style.visibility = "";
+            this.localVideoEl.style.opacity = "";
+            this.boundLocalPreviewTrack = null;
+            this.attachVideoToElement(track, this.localVideoEl, true);
+          }
         }
       } catch (e) {}
     });

@@ -10,22 +10,31 @@ export function bindInstantTap(
   handler: (ev: Event) => void,
   options?: { preventDefault?: boolean; stopPropagation?: boolean }
 ): void {
+  let lastFire = 0;
   const run = (e: Event) => {
+    const now = Date.now();
+    if (now - lastFire < 400) return;
+    lastFire = now;
     if (options?.stopPropagation) e.stopPropagation();
     if (options?.preventDefault) e.preventDefault();
     handler(e);
   };
 
-  el.addEventListener("click", run);
-  el.addEventListener(
-    "touchstart",
-    (e) => {
-      if (options?.stopPropagation) e.stopPropagation();
-      if (options?.preventDefault) e.preventDefault();
-      run(e);
-    },
-    { passive: !options?.preventDefault }
-  );
+  const useTouch = typeof window !== "undefined" && (window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0);
+
+  if (useTouch) {
+    el.addEventListener(
+      "touchstart",
+      (e) => {
+        if (options?.stopPropagation) e.stopPropagation();
+        if (options?.preventDefault) e.preventDefault();
+        run(e);
+      },
+      { passive: !options?.preventDefault }
+    );
+  } else {
+    el.addEventListener("click", run);
+  }
 }
 
 /** Pointer-based tap vs drag discrimination for draggable floating controls. */

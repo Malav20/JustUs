@@ -40,7 +40,7 @@ export const TELEPARTY_SIDEBAR_CSS = `* { box-sizing: border-box; margin: 0; pad
     transition: background 0.2s;
   }
         .tp-sidebar-tab:hover { background: #2A2F48; }
-        .tp-sidebar-tab, .tp-btn-icon, .tp-av-btn, .tp-emoji-btn, .tp-collapse-arrow {
+        .tp-sidebar-tab, .tp-btn-icon, .tp-av-btn, .tp-emoji-btn {
           touch-action: manipulation;
           -webkit-tap-highlight-color: transparent;
         }
@@ -61,17 +61,6 @@ export const TELEPARTY_SIDEBAR_CSS = `* { box-sizing: border-box; margin: 0; pad
     align-items: center;
     gap: 8px;
   }
-
-  .tp-collapse-arrow {
-    background: none;
-    border: none;
-    color: #94A3B8;
-    cursor: pointer;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-  }
-  .tp-collapse-arrow:hover { color: #fff; }
 
   .tp-brand-icon {
     width: 26px;

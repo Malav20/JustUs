@@ -1,16 +1,13 @@
 export function buildTelepartySidebarHtml(userName: string, avatarColor: string): string {
   return `<div id="tp-sidebar-container">
   <!-- Collapsible Tab on left edge -->
-  <button class="tp-sidebar-tab" id="btn-tab-toggle" title="Toggle Sidebar">
+  <button class="tp-sidebar-tab" id="btn-tab-toggle" title="Hide sidebar">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
   </button>
 
   <!-- Top Header Bar -->
   <div class="tp-topbar">
     <div class="tp-topbar-left">
-      <button class="tp-collapse-arrow" id="btn-collapse" title="Collapse">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
-      </button>
       <div class="tp-brand-icon">JU</div>
       <div class="tp-badge-btn">JUSTUS</div>
     </div>
@@ -46,8 +43,8 @@ export function buildTelepartySidebarHtml(userName: string, avatarColor: string)
         <div class="tp-pulse-ring"></div>
         <span>Waiting for friend to join call...</span>
       </div>
-      <video class="tp-remote-video" id="remote-feed" autoplay playsinline></video>
-      <video class="tp-local-video-pip" id="local-feed" autoplay playsinline muted></video>
+      <video class="tp-remote-video" id="remote-feed" playsinline muted></video>
+      <video class="tp-local-video-pip" id="local-feed" playsinline muted></video>
     </div>
 
     <div class="tp-video-toolbar">
