@@ -11,7 +11,7 @@
 // (the SYNC object). Change both together.
 
 (function () {
-  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-v4";
+  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-v5";
   if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {
     if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === "function") {
       window.__JUSTUS_ENSURE_MOUNTED__();
@@ -534,10 +534,12 @@
       max-width: 85vw;
       max-height: 80vh;
       border-radius: 18px;
-      background: #090A10;
+      /* Transparent — actual video is rendered in document.body <video> elements
+         that sit below this Shadow DOM stacking context but are visible through it */
+      background: transparent;
       border: 1.5px solid rgba(255, 255, 255, 0.22);
       box-shadow: 0 14px 40px rgba(0, 0, 0, 0.85);
-      overflow: hidden;
+      overflow: visible;
       z-index: 2147483645;
       pointer-events: auto;
       user-select: none;
@@ -557,71 +559,18 @@
       position: relative;
       width: 100%;
       height: 100%;
-      background: #000;
+      /* Transparent so body-level <video> elements show through the Shadow DOM
+         stacking context. The waiting overlay provides the dark background when
+         no video is playing. */
+      background: transparent;
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
-    .remote-video-feed,
-    .local-video-pip {
-      -webkit-appearance: none !important;
-    }
-    .remote-video-feed::-webkit-media-controls,
-    .local-video-pip::-webkit-media-controls,
-    .remote-video-feed::-webkit-media-controls-enclosure,
-    .local-video-pip::-webkit-media-controls-enclosure,
-    .remote-video-feed::-webkit-media-controls-panel,
-    .local-video-pip::-webkit-media-controls-panel,
-    .remote-video-feed::-webkit-media-controls-overlay-play-button,
-    .local-video-pip::-webkit-media-controls-overlay-play-button,
-    .remote-video-feed::-webkit-media-controls-start-playback-button,
-    .local-video-pip::-webkit-media-controls-start-playback-button,
-    .remote-video-feed::-webkit-media-controls-play-button,
-    .local-video-pip::-webkit-media-controls-play-button {
-      display: none !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
-      width: 0 !important;
-      height: 0 !important;
-      -webkit-appearance: none !important;
-    }
-
-    .remote-video-feed {
-      position: absolute !important;
-      inset: 0 !important;
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover !important;
-      display: block !important;
-      background: #090A10 !important;
-      pointer-events: none !important;
-      z-index: 0 !important;
-    }
-
-    /* Local self-view PIP positioned in top-left to eliminate control button collision */
-    .local-video-pip {
-      position: absolute !important;
-      top: 8px !important;
-      left: 8px !important;
-      bottom: auto !important;
-      right: auto !important;
-      width: 60px !important;
-      height: 45px !important;
-      border-radius: 10px !important;
-      border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
-      object-fit: cover !important;
-      transform: none !important;
-      background: #181A26 !important;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.85) !important;
-      z-index: 3 !important;
-      pointer-events: none !important;
-    }
-    .local-video-pip.hidden {
-      visibility: hidden !important;
-      opacity: 0 !important;
-    }
+    /* .remote-video-feed and .local-video-pip live in document.body (not Shadow DOM)
+       and are styled inline by livekit.js so iOS WKWebView plays them inline. */
 
     .video-waiting-overlay {
       position: absolute;
@@ -1018,8 +967,9 @@
         <div class="waiting-pulse"></div>
         <span id="ju-waiting-text">Connecting video call...</span>
       </div>
-      <video class="remote-video-feed" id="ju-remote-video" muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback x-webkit-airplay="deny" controlslist="nodownload nofullscreen noremoteplayback noplaybackrate novolume"></video>
-      <video class="local-video-pip" id="ju-local-video" muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback x-webkit-airplay="deny" controlslist="nodownload nofullscreen noremoteplayback noplaybackrate novolume" style="visibility:hidden;opacity:0"></video>
+      <!-- Video elements live in document.body (not Shadow DOM) so iOS WKWebView
+           inline-playback policy applies. The canvas is transparent; body videos
+           show through behind the Shadow DOM stacking context. -->
 
       <!-- Tap-to-Reveal Controls Overlay -->
       <div class="video-controls-overlay hidden" id="ju-video-controls">
@@ -1224,6 +1174,7 @@
         videoWindow.style.left = `${newLeft}px`;
         videoWindow.style.top = `${newTop}px`;
         videoWindow.style.right = "auto";
+        syncVideoElements();
       }
     });
 
@@ -1308,6 +1259,7 @@
 
     videoWindow.style.width = `${newWidth}px`;
     videoWindow.style.height = `${newHeight}px`;
+    syncVideoElements();
   }
 
   function onWindowResizeEnd() {
@@ -1356,25 +1308,30 @@
   // ─────────────────────────────────────────────────────────────────
   // ─── LiveKit Video Call ────────────────────────────────────────────────────
   //
-  // iOS WKWebView rules this code is written around:
-  //   1. Never set the `autoplay` attribute — iOS low-power mode shows a native
-  //      pause overlay when autoplay fires. Call play() programmatically instead.
-  //   2. Use srcObject, not track.attach() for local preview inside Shadow DOM.
-  //      track.attach() creates its own <video>, invisible to WKWebView's inline-
-  //      playback policy when the element lives in a Shadow root.
-  //   3. Reset srcObject inside setTimeout(0) after first assignment — Safari
-  //      sometimes renders one black frame until this refresh triggers re-paint.
-  //   4. Mute/unmute via mediaStreamTrack.enabled only. LiveKit's .mute()
-  //      sends a server signal too, which causes a round-trip re-acquire on iOS.
-  //   5. Camera off/on = track.enabled toggle + hide PIP. Never stop() the track
-  //      mid-call — iOS cannot re-acquire camera hardware until the next gesture.
-  //   6. Keep one MediaStream per <video>. Do not create a new stream on toggle.
+  // WHY body-level <video> elements?
+  //   iOS WKWebView refuses inline playback for <video> inside Shadow DOM.
+  //   The fix is to render video in document.body (light DOM), positioned to
+  //   match the Shadow DOM window shell. The shell stays in Shadow DOM for
+  //   controls, borders, drag, and event isolation.
+  //
+  // iOS WKWebView rules:
+  //   1. No `autoplay` attribute — call play() programmatically.
+  //   2. Reset srcObject in setTimeout(0) — forces WebKit repaint.
+  //   3. muted + playsinline required for autoplay without gesture.
+  //   4. Never stop() a track mid-call — iOS can't re-acquire without gesture.
+  //   5. Use mediaStreamTrack.enabled for mute — no round-trip to server.
+  //   6. Remote audio: track.attach() on a body <audio> — not Shadow DOM.
   // ──────────────────────────────────────────────────────────────────────────
 
   let livekitRoom       = null;
-  let lkLocalVideoTrack = null;   // LiveKit LocalVideoTrack
-  let lkLocalAudioTrack = null;   // LiveKit LocalAudioTrack
+  let lkLocalVideoTrack = null;
+  let lkLocalAudioTrack = null;
   let remoteAudioEl     = null;
+
+  // Body-level video elements (live in document.body, not Shadow DOM)
+  let bodyRemoteVideo   = null;
+  let bodyLocalVideo    = null;
+
   let isVideoCallActive = false;
   let isMicEnabled      = true;
   let isCamEnabled      = true;
@@ -1404,77 +1361,153 @@
     if (window.LivekitClient) { cb(); return; }
     const s = document.createElement("script");
     s.src = "https://cdn.jsdelivr.net/npm/livekit-client@2.6.0/dist/livekit-client.umd.min.js";
-    s.onload  = () => window.LivekitClient && cb();
+    s.onload  = () => { if (window.LivekitClient) cb(); };
     s.onerror = () => addEventLog("⚠️ Could not load video SDK", "System");
     (document.head || document.documentElement).appendChild(s);
   }
 
-  // ── video element helper ───────────────────────────────────────────────────
-  // Mirrors what LiveKit's own Track.ts does for Safari/iOS.
-  // srcObject is set twice: once immediately and once in setTimeout(0) to force
-  // WebKit to repaint. play() is called only here — never again elsewhere.
+  // ── body-level video element factory ──────────────────────────────────────
+  // These live in document.body so iOS WKWebView applies inline-playback policy.
+  function createBodyVideoEl(id, opts) {
+    let el = document.getElementById(id);
+    if (el) return el;
+    el = document.createElement("video");
+    el.id             = id;
+    el.muted          = true;
+    el.playsInline    = true;
+    el.controls       = false;
+    el.disablePictureInPicture = true;
+    el.setAttribute("playsinline", "");
+    el.setAttribute("webkit-playsinline", "");
+    el.setAttribute("x-webkit-airplay", "deny");
+    el.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback noplaybackrate novolume");
+    Object.assign(el.style, {
+      position      : "fixed",
+      zIndex        : opts.zIndex || "2147483640",
+      pointerEvents : "none",
+      objectFit     : "cover",
+      display       : "none",
+      background    : "#090A10",
+      borderRadius  : opts.borderRadius || "0",
+      border        : opts.border || "none",
+      boxSizing     : "border-box",
+    });
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function ensureBodyVideos() {
+    if (!bodyRemoteVideo) {
+      bodyRemoteVideo = createBodyVideoEl("justus-remote-video", {
+        zIndex: "2147483640",
+        borderRadius: "18px",
+      });
+    }
+    if (!bodyLocalVideo) {
+      bodyLocalVideo = createBodyVideoEl("justus-local-video", {
+        zIndex: "2147483641",
+        borderRadius: "10px",
+        border: "1.5px solid rgba(255,255,255,0.6)",
+      });
+    }
+  }
+
+  // ── position sync ──────────────────────────────────────────────────────────
+  // Called after drag / resize / show-window so body videos stay aligned
+  // with the Shadow DOM video canvas.
+  function syncVideoElements() {
+    const canvas = shadow.getElementById("ju-video-canvas");
+    if (!canvas) return;
+    const r = canvas.getBoundingClientRect();
+    const hidden = videoWindow.classList.contains("hidden");
+
+    if (bodyRemoteVideo) {
+      if (hidden) {
+        bodyRemoteVideo.style.display = "none";
+      } else {
+        bodyRemoteVideo.style.left   = r.left + "px";
+        bodyRemoteVideo.style.top    = r.top + "px";
+        bodyRemoteVideo.style.width  = r.width + "px";
+        bodyRemoteVideo.style.height = r.height + "px";
+        if (bodyRemoteVideo.srcObject) bodyRemoteVideo.style.display = "block";
+      }
+    }
+
+    if (bodyLocalVideo) {
+      if (hidden || !isCamEnabled) {
+        bodyLocalVideo.style.display = "none";
+      } else {
+        bodyLocalVideo.style.left   = (r.left + 8) + "px";
+        bodyLocalVideo.style.top    = (r.top + 8) + "px";
+        bodyLocalVideo.style.width  = "60px";
+        bodyLocalVideo.style.height = "45px";
+        if (bodyLocalVideo.srcObject) bodyLocalVideo.style.display = "block";
+      }
+    }
+  }
+
+  // ── video playback helper ──────────────────────────────────────────────────
+  // Matches LiveKit's own Safari workaround from Track.ts:
+  //   - No autoplay attribute
+  //   - srcObject set twice (second in setTimeout) to force WebKit repaint
+  //   - play() called once, inside the timeout
   function setSrcAndPlay(videoEl, mediaStream) {
     if (!videoEl || !mediaStream) return;
-    videoEl.muted        = true;
-    videoEl.playsInline  = true;
-    videoEl.controls     = false;
-    videoEl.disablePictureInPicture = true;
-    // Do NOT set autoplay attribute — iOS low-power mode overlays it.
+    // First assignment (Safari sometimes needs both)
     videoEl.srcObject = mediaStream;
     setTimeout(() => {
-      // Re-assign in a new task forces WebKit to redraw after layout.
-      videoEl.srcObject = mediaStream;
+      videoEl.srcObject = mediaStream;    // forces WebKit re-render
       videoEl.play().catch(() => {});
     }, 0);
   }
 
   // ── local preview ──────────────────────────────────────────────────────────
   function showLocalPreview() {
-    if (!lkLocalVideoTrack) return;
-    const el = shadow.getElementById("ju-local-video");
-    if (!el) return;
+    if (!lkLocalVideoTrack || !isCamEnabled) return;
+    ensureBodyVideos();
     const mst = lkLocalVideoTrack.mediaStreamTrack;
     if (!mst) return;
-    // Reuse existing stream if same track, avoids stutter on toggle.
-    const existing = el.srcObject instanceof MediaStream
-      ? el.srcObject.getVideoTracks()[0]
+
+    const existing = bodyLocalVideo.srcObject instanceof MediaStream
+      ? bodyLocalVideo.srcObject.getVideoTracks()[0]
       : null;
+
     if (existing !== mst) {
-      setSrcAndPlay(el, new MediaStream([mst]));
-    } else if (el.paused) {
-      el.play().catch(() => {});
+      setSrcAndPlay(bodyLocalVideo, new MediaStream([mst]));
+    } else if (bodyLocalVideo.paused) {
+      bodyLocalVideo.play().catch(() => {});
     }
-    el.style.visibility = "";
-    el.style.opacity    = "1";
+    syncVideoElements();
   }
 
   function hideLocalPreview() {
-    const el = shadow.getElementById("ju-local-video");
-    if (!el) return;
-    el.style.visibility = "hidden";
-    el.style.opacity    = "0";
+    if (bodyLocalVideo) bodyLocalVideo.style.display = "none";
   }
 
   // ── remote video ───────────────────────────────────────────────────────────
   function showRemoteVideo(track) {
-    const el = shadow.getElementById("ju-remote-video");
-    if (!el || !track) return;
+    if (!track) return;
+    ensureBodyVideos();
     const mst = track.mediaStreamTrack;
     if (!mst) return;
-    const existing = el.srcObject instanceof MediaStream
-      ? el.srcObject.getVideoTracks()[0]
+
+    const existing = bodyRemoteVideo.srcObject instanceof MediaStream
+      ? bodyRemoteVideo.srcObject.getVideoTracks()[0]
       : null;
+
     if (existing !== mst) {
-      setSrcAndPlay(el, new MediaStream([mst]));
-    } else if (el.paused) {
-      el.play().catch(() => {});
+      setSrcAndPlay(bodyRemoteVideo, new MediaStream([mst]));
+    } else if (bodyRemoteVideo.paused) {
+      bodyRemoteVideo.play().catch(() => {});
     }
+    syncVideoElements();
+
     const waiting = shadow.getElementById("ju-video-waiting");
     if (waiting) waiting.classList.add("hidden");
   }
 
   // ── token fetch ────────────────────────────────────────────────────────────
-  async function fetchToken(roomName, identity, userName, host) {
+  async function fetchLkToken(roomName, identity, userName, host) {
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const res = await fetch(`${API_BASE}/api/livekit/token`, {
@@ -1492,7 +1525,7 @@
     return null;
   }
 
-  // ── connect ─────────────────────────────────────────────────────────────────
+  // ── connect ────────────────────────────────────────────────────────────────
   async function connectLiveKitCall(isReconnect) {
     if (!activeRoomId || isLkConnecting) return;
     if (livekitRoom && livekitRoom.state === "connected") return;
@@ -1500,23 +1533,25 @@
     isLkConnecting = true;
     userHungUp     = false;
 
+    ensureBodyVideos();
     const waitEl = shadow.getElementById("ju-waiting-text");
     if (waitEl) waitEl.textContent = "Connecting video call…";
 
     loadLiveKitSDK(async () => {
       try {
-        const LK = window.LivekitClient;
-        const identity   = getLkIdentity();
-        const tokenData  = await fetchToken(activeRoomId, identity, currentUserName, isHost);
-        if (!tokenData) throw new Error("Could not get video call token.");
-
-        const { token, wsUrl } = tokenData;
+        const LK       = window.LivekitClient;
+        const identity = getLkIdentity();
+        const td       = await fetchLkToken(activeRoomId, identity, currentUserName, isHost);
+        if (!td) throw new Error("Could not get video call token");
 
         const room = new LK.Room({
           adaptiveStream : false,
           dynacast       : false,
           publishDefaults: { simulcast: false, videoCodec: "vp8" },
-          videoCaptureDefaults: { resolution: { width: 480, height: 360, frameRate: 24 } },
+          videoCaptureDefaults: {
+            resolution: { width: 480, height: 360, frameRate: 24 },
+            facingMode: currentFacingMode,
+          },
         });
         livekitRoom = room;
 
@@ -1526,20 +1561,23 @@
             showRemoteVideo(track);
           }
           if (track.kind === LK.Track.Kind.Audio) {
-            // Audio: let LiveKit attach to a plain <audio> outside Shadow DOM
-            // so iOS AVAudioSession routes it correctly.
             if (remoteAudioEl) {
               try { remoteAudioEl.remove(); } catch {}
             }
+            // Audio element goes in document.body (not Shadow DOM) for
+            // proper iOS AVAudioSession routing to the speaker.
             remoteAudioEl = track.attach();
             remoteAudioEl.volume = 1.0;
-            // Append to document body — NOT Shadow DOM — for AVAudioSession routing.
             document.body.appendChild(remoteAudioEl);
           }
         });
 
         room.on(LK.RoomEvent.TrackUnsubscribed, (track) => {
           if (track.kind === LK.Track.Kind.Video) {
+            if (bodyRemoteVideo) {
+              bodyRemoteVideo.style.display = "none";
+              bodyRemoteVideo.srcObject = null;
+            }
             const waiting = shadow.getElementById("ju-video-waiting");
             if (waiting) waiting.classList.remove("hidden");
           }
@@ -1547,6 +1585,10 @@
         });
 
         room.on(LK.RoomEvent.ParticipantDisconnected, () => {
+          if (bodyRemoteVideo) {
+            bodyRemoteVideo.style.display = "none";
+            bodyRemoteVideo.srcObject = null;
+          }
           const waiting = shadow.getElementById("ju-video-waiting");
           if (waiting) {
             waiting.classList.remove("hidden");
@@ -1555,45 +1597,39 @@
           }
         });
 
-        // iOS low-power / background: WebKit pauses video without warning.
-        // room.startVideo() resumes all stalled video elements.
+        // iOS: WebKit pauses video in background; room.startVideo() resumes.
         room.on(LK.RoomEvent.VideoPlaybackStatusChanged, () => {
-          if (!room.canPlaybackVideo) {
-            room.startVideo().catch(() => {});
-          }
+          if (!room.canPlaybackVideo) room.startVideo().catch(() => {});
         });
 
-        room.on(LK.RoomEvent.Disconnected, onDisconnected);
+        room.on(LK.RoomEvent.Disconnected, onLkDisconnected);
 
         // ── connect ──────────────────────────────────────────────────────────
-        await room.connect(wsUrl, token);
+        await room.connect(td.wsUrl, td.token);
         isVideoCallActive = true;
         updateVideoPillState();
 
-        // ── publish microphone ───────────────────────────────────────────────
+        // ── publish microphone first (iOS audio session needs this) ──────────
         if (isMicEnabled) {
           try {
             await room.localParticipant.setMicrophoneEnabled(true);
-            const micPub = room.localParticipant.getTrackPublication(LK.Track.Source.Microphone);
-            if (micPub?.track) {
-              lkLocalAudioTrack = micPub.track;
-              // Ensure enabled at the hardware level
+            const pub = room.localParticipant.getTrackPublication(LK.Track.Source.Microphone);
+            if (pub?.track) {
+              lkLocalAudioTrack = pub.track;
               if (lkLocalAudioTrack.mediaStreamTrack) {
                 lkLocalAudioTrack.mediaStreamTrack.enabled = true;
               }
             }
-          } catch (e) {
-            console.warn("[JustUS] Mic:", e);
-          }
+          } catch (e) { console.warn("[JustUS] Mic:", e); }
         }
 
         // ── publish camera ───────────────────────────────────────────────────
         if (isCamEnabled) {
           try {
             await room.localParticipant.setCameraEnabled(true);
-            const camPub = room.localParticipant.getTrackPublication(LK.Track.Source.Camera);
-            if (camPub?.track) {
-              lkLocalVideoTrack = camPub.track;
+            const pub = room.localParticipant.getTrackPublication(LK.Track.Source.Camera);
+            if (pub?.track) {
+              lkLocalVideoTrack = pub.track;
               showLocalPreview();
             }
           } catch (e) {
@@ -1602,30 +1638,33 @@
           }
         }
 
-        // ── subscribe to remote tracks already in room ───────────────────────
+        // ── pick up remote tracks already in room ────────────────────────────
         room.remoteParticipants.forEach((p) => {
           p.videoTrackPublications.forEach((pub) => {
-            if (!pub.isSubscribed) {
-              try { pub.setSubscribed(true); } catch {}
-            }
             if (pub.track && pub.isSubscribed) showRemoteVideo(pub.track);
+          });
+          p.audioTrackPublications.forEach((pub) => {
+            if (pub.track && pub.isSubscribed && !remoteAudioEl) {
+              remoteAudioEl = pub.track.attach();
+              remoteAudioEl.volume = 1.0;
+              document.body.appendChild(remoteAudioEl);
+            }
           });
         });
 
         if (waitEl) waitEl.textContent = "Waiting for friend to join…";
-
       } catch (err) {
         console.error("[JustUS] LiveKit:", err);
-        const waitEl2 = shadow.getElementById("ju-waiting-text");
-        if (waitEl2) waitEl2.textContent = `Error: ${err.message || "Connection failed"}`;
+        const wt = shadow.getElementById("ju-waiting-text");
+        if (wt) wt.textContent = `Error: ${err.message || "Connection failed"}`;
       } finally {
         isLkConnecting = false;
       }
     });
   }
 
-  // ── disconnect handler ─────────────────────────────────────────────────────
-  function onDisconnected() {
+  // ── disconnect ─────────────────────────────────────────────────────────────
+  function onLkDisconnected() {
     livekitRoom       = null;
     isVideoCallActive = false;
     isLkConnecting    = false;
@@ -1634,15 +1673,12 @@
       try { remoteAudioEl.remove(); } catch {}
       remoteAudioEl = null;
     }
-
     updateVideoPillState();
 
     if (!userHungUp && activeRoomId) {
       clearTimeout(reconnectTimer);
       reconnectTimer = setTimeout(() => {
-        if (!userHungUp && activeRoomId && !livekitRoom) {
-          connectLiveKitCall(true);
-        }
+        if (!userHungUp && activeRoomId && !livekitRoom) connectLiveKitCall(true);
       }, 2500);
     }
   }
@@ -1654,7 +1690,6 @@
     clearTimeout(reconnectTimer);
     clearLkIdentity();
 
-    // Stop hardware tracks so camera light turns off
     if (lkLocalVideoTrack) {
       try { lkLocalVideoTrack.stop(); } catch {}
       lkLocalVideoTrack = null;
@@ -1668,9 +1703,15 @@
       remoteAudioEl = null;
     }
 
-    hideLocalPreview();
-    const remoteEl = shadow.getElementById("ju-remote-video");
-    if (remoteEl) remoteEl.srcObject = null;
+    // Clear body videos
+    if (bodyRemoteVideo) {
+      bodyRemoteVideo.style.display = "none";
+      bodyRemoteVideo.srcObject = null;
+    }
+    if (bodyLocalVideo) {
+      bodyLocalVideo.style.display = "none";
+      bodyLocalVideo.srcObject = null;
+    }
 
     const waiting = shadow.getElementById("ju-video-waiting");
     if (waiting) waiting.classList.remove("hidden");
@@ -1679,29 +1720,24 @@
       try { livekitRoom.disconnect(true); } catch {}
       livekitRoom = null;
     }
-
     isVideoCallActive = false;
     updateVideoPillState();
   }
 
   // ── mic toggle ─────────────────────────────────────────────────────────────
-  // Rules: use mediaStreamTrack.enabled for instant hardware mute.
-  // Also call setMicrophoneEnabled so the server/remote sees correct state.
   async function toggleMic() {
     isMicEnabled = !isMicEnabled;
     const btn = shadow.getElementById("ju-btn-mic");
     if (btn) btn.classList.toggle("off", !isMicEnabled);
 
-    // Hardware-level mute first — instant, no round-trip
+    // Hardware mute first — instant, no server round-trip
     if (lkLocalAudioTrack?.mediaStreamTrack) {
       lkLocalAudioTrack.mediaStreamTrack.enabled = isMicEnabled;
     }
 
-    // Also tell LiveKit server so remote participants see correct state
     if (livekitRoom?.state === "connected") {
       try {
         await livekitRoom.localParticipant.setMicrophoneEnabled(isMicEnabled);
-        // Re-capture track reference in case LiveKit re-acquired it
         const pub = livekitRoom.localParticipant.getTrackPublication(
           window.LivekitClient.Track.Source.Microphone
         );
@@ -1714,13 +1750,12 @@
   }
 
   // ── camera toggle ──────────────────────────────────────────────────────────
-  // Rules: NEVER stop() the camera mid-call on iOS — can't re-acquire without gesture.
-  // Use mediaStreamTrack.enabled to produce black frames when "off".
   async function toggleCam() {
     isCamEnabled = !isCamEnabled;
     const btn = shadow.getElementById("ju-btn-cam");
     if (btn) btn.classList.toggle("off", !isCamEnabled);
 
+    // Disable/enable the track at hardware level immediately
     if (lkLocalVideoTrack?.mediaStreamTrack) {
       lkLocalVideoTrack.mediaStreamTrack.enabled = isCamEnabled;
     }
@@ -1750,13 +1785,7 @@
   async function flipCamera() {
     if (!livekitRoom || livekitRoom.state !== "connected") return;
     currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
-
     try {
-      // Disable old track first to release hardware
-      if (lkLocalVideoTrack?.mediaStreamTrack) {
-        lkLocalVideoTrack.mediaStreamTrack.enabled = false;
-      }
-      // LiveKit restartTrack re-acquires with new constraints
       await livekitRoom.localParticipant.setCameraEnabled(false);
       await livekitRoom.localParticipant.setCameraEnabled(true, {
         facingMode: currentFacingMode,
@@ -1769,28 +1798,27 @@
         lkLocalVideoTrack = pub.track;
         showLocalPreview();
       }
-    } catch (e) {
-      console.warn("[JustUS] Flip camera:", e);
-    }
+    } catch (e) { console.warn("[JustUS] Flip:", e); }
   }
 
-  // ── toggle the PIP window ──────────────────────────────────────────────────
+  // ── show / hide the PIP window ─────────────────────────────────────────────
   function toggleVideoCallWindow() {
     if (!activeRoomId) {
       addEventLog("⚠️ Join or create a watch party first", "System");
       toggleDrawer();
       return;
     }
-
     if (videoWindow.classList.contains("hidden")) {
       videoWindow.classList.remove("hidden");
+      syncVideoElements();
       if (!livekitRoom && !isLkConnecting) connectLiveKitCall(false);
     } else {
       videoWindow.classList.add("hidden");
+      syncVideoElements();
     }
   }
 
-  // ── pill state ─────────────────────────────────────────────────────────────
+  // ── pill / drawer state ────────────────────────────────────────────────────
   function updateVideoPillState() {
     const dot      = shadow.getElementById("ju-video-dot");
     const pillText = shadow.getElementById("ju-video-pill-text");
@@ -1825,7 +1853,7 @@
     autoCallScheduled = true;
     setTimeout(() => {
       if (!activeRoomId || isVideoCallActive || isLkConnecting) return;
-      if (videoWindow && videoWindow.classList.contains("hidden")) {
+      if (videoWindow.classList.contains("hidden")) {
         toggleVideoCallWindow();
       } else if (!livekitRoom) {
         connectLiveKitCall(false);

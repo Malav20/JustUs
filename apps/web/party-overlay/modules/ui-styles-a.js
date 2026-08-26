@@ -91,10 +91,12 @@
       max-width: 85vw;
       max-height: 80vh;
       border-radius: 18px;
-      background: #090A10;
+      /* Transparent — actual video is rendered in document.body <video> elements
+         that sit below this Shadow DOM stacking context but are visible through it */
+      background: transparent;
       border: 1.5px solid rgba(255, 255, 255, 0.22);
       box-shadow: 0 14px 40px rgba(0, 0, 0, 0.85);
-      overflow: hidden;
+      overflow: visible;
       z-index: 2147483645;
       pointer-events: auto;
       user-select: none;
@@ -114,71 +116,18 @@
       position: relative;
       width: 100%;
       height: 100%;
-      background: #000;
+      /* Transparent so body-level <video> elements show through the Shadow DOM
+         stacking context. The waiting overlay provides the dark background when
+         no video is playing. */
+      background: transparent;
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
-    .remote-video-feed,
-    .local-video-pip {
-      -webkit-appearance: none !important;
-    }
-    .remote-video-feed::-webkit-media-controls,
-    .local-video-pip::-webkit-media-controls,
-    .remote-video-feed::-webkit-media-controls-enclosure,
-    .local-video-pip::-webkit-media-controls-enclosure,
-    .remote-video-feed::-webkit-media-controls-panel,
-    .local-video-pip::-webkit-media-controls-panel,
-    .remote-video-feed::-webkit-media-controls-overlay-play-button,
-    .local-video-pip::-webkit-media-controls-overlay-play-button,
-    .remote-video-feed::-webkit-media-controls-start-playback-button,
-    .local-video-pip::-webkit-media-controls-start-playback-button,
-    .remote-video-feed::-webkit-media-controls-play-button,
-    .local-video-pip::-webkit-media-controls-play-button {
-      display: none !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
-      width: 0 !important;
-      height: 0 !important;
-      -webkit-appearance: none !important;
-    }
-
-    .remote-video-feed {
-      position: absolute !important;
-      inset: 0 !important;
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover !important;
-      display: block !important;
-      background: #090A10 !important;
-      pointer-events: none !important;
-      z-index: 0 !important;
-    }
-
-    /* Local self-view PIP positioned in top-left to eliminate control button collision */
-    .local-video-pip {
-      position: absolute !important;
-      top: 8px !important;
-      left: 8px !important;
-      bottom: auto !important;
-      right: auto !important;
-      width: 60px !important;
-      height: 45px !important;
-      border-radius: 10px !important;
-      border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
-      object-fit: cover !important;
-      transform: none !important;
-      background: #181A26 !important;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.85) !important;
-      z-index: 3 !important;
-      pointer-events: none !important;
-    }
-    .local-video-pip.hidden {
-      visibility: hidden !important;
-      opacity: 0 !important;
-    }
+    /* .remote-video-feed and .local-video-pip live in document.body (not Shadow DOM)
+       and are styled inline by livekit.js so iOS WKWebView plays them inline. */
 
     .video-waiting-overlay {
       position: absolute;

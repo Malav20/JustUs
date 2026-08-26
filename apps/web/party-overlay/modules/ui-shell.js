@@ -25,8 +25,9 @@
         <div class="waiting-pulse"></div>
         <span id="ju-waiting-text">Connecting video call...</span>
       </div>
-      <video class="remote-video-feed" id="ju-remote-video" muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback x-webkit-airplay="deny" controlslist="nodownload nofullscreen noremoteplayback noplaybackrate novolume"></video>
-      <video class="local-video-pip" id="ju-local-video" muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback x-webkit-airplay="deny" controlslist="nodownload nofullscreen noremoteplayback noplaybackrate novolume" style="visibility:hidden;opacity:0"></video>
+      <!-- Video elements live in document.body (not Shadow DOM) so iOS WKWebView
+           inline-playback policy applies. The canvas is transparent; body videos
+           show through behind the Shadow DOM stacking context. -->
 
       <!-- Tap-to-Reveal Controls Overlay -->
       <div class="video-controls-overlay hidden" id="ju-video-controls">
@@ -231,6 +232,7 @@
         videoWindow.style.left = `${newLeft}px`;
         videoWindow.style.top = `${newTop}px`;
         videoWindow.style.right = "auto";
+        syncVideoElements();
       }
     });
 
@@ -315,6 +317,7 @@
 
     videoWindow.style.width = `${newWidth}px`;
     videoWindow.style.height = `${newHeight}px`;
+    syncVideoElements();
   }
 
   function onWindowResizeEnd() {
