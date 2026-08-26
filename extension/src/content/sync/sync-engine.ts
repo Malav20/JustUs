@@ -10,6 +10,7 @@ import {
   playTargetTime,
   shouldSeek,
 } from "../../shared/sync-core";
+import { setScreenWakeLock } from "./sync-wakelock";
 
 function getSupabaseClient() {
   const url = CONFIG.SUPABASE_URL || "https://placeholder.supabase.co";
@@ -39,34 +40,19 @@ export class SyncEngine {
   private stateRequestRetryTimer: any = null;
 
   // Screen Wake Lock Sentinel
-  private wakeLockSentinel: any = null;
+  private wakeLockRef: { current: WakeLockSentinel | null } = { current: null };
 
   // Callbacks
   private onDriftUpdate?: (driftMs: number) => void;
   private onChatReceived?: (message: ChatMessage) => void;
   private onParticipantJoined?: (userName: string, color?: string) => void;
   private onParticipantLeft?: (userName: string) => void;
+  private onParticipantCountChange?: (count: number) => void;
   private onPlaybackAction?: (action: "play" | "pause" | "seek", time: number, sender: string) => void;
   private onConnectionStateChange?: (status: "connected" | "disconnected" | "error") => void;
 
-  private async setScreenWakeLock(enable: boolean) {
-    try {
-      if ("wakeLock" in navigator && typeof (navigator as any).wakeLock?.request === "function") {
-        if (enable) {
-          if (!this.wakeLockSentinel || this.wakeLockSentinel.released) {
-            this.wakeLockSentinel = await (navigator as any).wakeLock.request("screen");
-            this.wakeLockSentinel.addEventListener("release", () => {
-              this.wakeLockSentinel = null;
-            });
-          }
-        } else {
-          if (this.wakeLockSentinel && !this.wakeLockSentinel.released) {
-            await this.wakeLockSentinel.release();
-            this.wakeLockSentinel = null;
-          }
-        }
-      }
-    } catch (e) {}
+  private async applyScreenWakeLock(enable: boolean) {
+    await setScreenWakeLock(enable, this.wakeLockRef);
   }
 
   constructor(
@@ -274,7 +260,7 @@ export class SyncEngine {
             .catch(() => {});
         }
       })
-      .catch(() => {});
+      .then(() => {}, () => {});
   }
 
   private requestLiveStateFromPeers() {
@@ -371,14 +357,14 @@ export class SyncEngine {
     if (event === "play") {
       console.log(`[JustUS] Local PLAY at ${time.toFixed(2)}s -> Outbound broadcast`);
       this.lastUserActionTime = Date.now();
-      this.setScreenWakeLock(true);
+      this.applyScreenWakeLock(true);
       this.broadcast("PLAY", payload);
       this.persistRoomState(time, true);
       if (this.onPlaybackAction) this.onPlaybackAction("play", time, this.userName);
     } else if (event === "pause") {
       console.log(`[JustUS] Local PAUSE at ${time.toFixed(2)}s -> Outbound broadcast`);
       this.lastUserActionTime = Date.now();
-      this.setScreenWakeLock(false);
+      this.applyScreenWakeLock(false);
       this.broadcast("PAUSE", payload);
       this.persistRoomState(time, false);
       if (this.onPlaybackAction) this.onPlaybackAction("pause", time, this.userName);
@@ -411,7 +397,7 @@ export class SyncEngine {
       })
       .eq("id", this.roomId)
       .then(() => {})
-      .catch(() => {});
+      .then(() => {}, () => {});
   }
 
   private handleRemotePlay(payload: SyncPayload) {
@@ -419,7 +405,7 @@ export class SyncEngine {
     console.log(`[JustUs] Remote PLAY received from ${senderName} at ${payload.time.toFixed(2)}s`);
     this.isInitialSyncCompleted = true;
     this.lastUserActionTime = Date.now();
-    this.setScreenWakeLock(true);
+    this.applyScreenWakeLock(true);
     if (this.onPlaybackAction) this.onPlaybackAction("play", payload.time, senderName);
     this.withSyncLock(async () => {
       const targetTime = playTargetTime(payload.time, payload.sentAt, Date.now());
@@ -435,7 +421,7 @@ export class SyncEngine {
     console.log(`[JustUs] Remote PAUSE received from ${senderName} at ${payload.time.toFixed(2)}s`);
     this.isInitialSyncCompleted = true;
     this.lastUserActionTime = Date.now();
-    this.setScreenWakeLock(false);
+    this.applyScreenWakeLock(false);
     if (this.onPlaybackAction) this.onPlaybackAction("pause", payload.time, senderName);
     this.withSyncLock(async () => {
       await this.adapter.pause();
@@ -589,8 +575,7 @@ export class SyncEngine {
         message: text.trim(),
         created_at: new Date().toISOString(),
       })
-      .then(() => {})
-      .catch(() => {});
+      .then(() => {}, () => {});
 
     fetch(`${CONFIG.WEB_API_URL}/api/chat`, {
       method: "POST",
@@ -627,7 +612,7 @@ export class SyncEngine {
   }
 
   public stop() {
-    this.setScreenWakeLock(false);
+    this.applyScreenWakeLock(false);
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.stateRequestRetryTimer) clearTimeout(this.stateRequestRetryTimer);
     if (this.channel) {

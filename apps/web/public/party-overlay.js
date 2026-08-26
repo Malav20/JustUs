@@ -1,3 +1,7 @@
+// JustUS iOS / Android / iPadOS Injected Watch Party Overlay
+// Built from apps/web/party-overlay/modules — run: npm run build:overlay
+// Playback-sync thresholds match extension/src/shared/sync-core.ts (change both together).
+
 // JustUS iOS / iPadOS Injected Watch Party Overlay
 // Provides Floating Party HUD, Cross-Platform Supabase Playback Sync, Event Logging & Chat
 //
@@ -98,7 +102,6 @@
     };
     (document.head || document.documentElement).appendChild(script);
   }
-
   // Detect Video Player (YouTube, Netflix API, Prime, or HTML5 video)
   function findVideoElement() {
     return document.querySelector(".html5-main-video, .watch-video video, .sizing-wrapper video, .webPlayerUIContainer video, .rendererContainer video, video");
@@ -2198,8 +2201,73 @@
       }).catch(() => {});
     }
   }
+// Mirrors extension/src/shared/sync-core.ts — keep in lock-step with that file.
+const SYNC = {
+  HEARTBEAT_INTERVAL_MS: 2000,
+  USER_ACTION_GRACE_MS: 3500,
+  SYNC_ACTION_COOLDOWN_MS: 400,
+  RATE_DEADBAND_S: 0.15,
+  RATE_FAST: 1.04,
+  RATE_SLOW: 0.96,
+  HARD_SEEK_WHILE_PLAYING_S: 1.2,
+  HARD_SEEK_WHILE_PAUSED_S: 0.2,
+  HEARTBEAT_MAX_LATENCY_S: 0.4,
+  PLAY_MAX_LATENCY_S: 1.5,
+  EVENT_SEEK_THRESHOLD_S: 0.35,
+  MIN_MEANINGFUL_TIME_S: 0.5,
+};
+
+function clampLatencySeconds(sentAt, now, maxSeconds) {
+  return Math.max(0, Math.min(maxSeconds, (now - sentAt) / 1000));
+}
+
+function expectedRemoteTime(payloadTime, isPlaying, latencySeconds) {
+  return isPlaying ? payloadTime + latencySeconds : payloadTime;
+}
+
+function playTargetTime(payloadTime, sentAt, now) {
+  const latency = Math.max(0, (now - sentAt) / 1000);
+  return payloadTime + (latency > 0 && latency < SYNC.PLAY_MAX_LATENCY_S ? latency : 0);
+}
+
+function shouldSeek(currentTime, targetTime, threshold = SYNC.EVENT_SEEK_THRESHOLD_S) {
+  return targetTime > 1.0 && Math.abs(currentTime - targetTime) > threshold;
+}
+
+function computeHeartbeatCorrection(input) {
+  const latency = clampLatencySeconds(input.sentAt, input.now, SYNC.HEARTBEAT_MAX_LATENCY_S);
+  const expected = expectedRemoteTime(input.payloadTime, input.isPlaying, latency);
+  const delta = expected - input.currentTime;
+  const drift = Math.abs(delta);
+  const correction = {};
+
+  if (input.isPlaying) {
+    correction.ensurePlaying = true;
+    if (drift > SYNC.HARD_SEEK_WHILE_PLAYING_S && expected > SYNC.MIN_MEANINGFUL_TIME_S) {
+      correction.seekTo = expected;
+      correction.playbackRate = 1.0;
+    } else if (delta > SYNC.RATE_DEADBAND_S) {
+      correction.playbackRate = SYNC.RATE_FAST;
+    } else if (delta < -SYNC.RATE_DEADBAND_S) {
+      correction.playbackRate = SYNC.RATE_SLOW;
+    } else {
+      correction.playbackRate = 1.0;
+    }
+  } else {
+    correction.playbackRate = 1.0;
+    correction.ensurePaused = true;
+    if (drift > SYNC.HARD_SEEK_WHILE_PAUSED_S && expected > SYNC.MIN_MEANINGFUL_TIME_S) {
+      correction.seekTo = expected;
+    }
+  }
+  return correction;
+}
 
   let lastUserActionTime = 0;
+
+  function releaseSyncLock() {
+    setTimeout(() => (isSyncActionInProgress = false), SYNC.SYNC_ACTION_COOLDOWN_MS);
+  }
 
   function handleRemotePlay(payload) {
     const sender = payload.sender || "Friend";
@@ -2208,13 +2276,13 @@
     lastUserActionTime = Date.now();
     isSyncActionInProgress = true;
     const current = getCurrentVideoTime();
-    const latency = Math.max(0, (Date.now() - (payload.sentAt || Date.now())) / 1000);
-    const target = payload.time + (latency > 0 && latency < 1.5 ? latency : 0);
-    if (target > 1.0 && Math.abs(current - target) > 0.35) {
+    const now = Date.now();
+    const target = playTargetTime(payload.time, payload.sentAt || now, now);
+    if (shouldSeek(current, target)) {
       seekVideo(target);
     }
     playVideo();
-    setTimeout(() => (isSyncActionInProgress = false), 1000);
+    releaseSyncLock();
   }
 
   function handleRemotePause(payload) {
@@ -2224,32 +2292,33 @@
     lastUserActionTime = Date.now();
     isSyncActionInProgress = true;
     pauseVideo();
-    if (payload.time > 1.0 && Math.abs(getCurrentVideoTime() - payload.time) > 0.25) {
+    if (
+      payload.time > SYNC.MIN_MEANINGFUL_TIME_S &&
+      Math.abs(getCurrentVideoTime() - payload.time) > SYNC.HARD_SEEK_WHILE_PAUSED_S
+    ) {
       seekVideo(payload.time);
     }
-    setTimeout(() => (isSyncActionInProgress = false), 1000);
+    releaseSyncLock();
   }
 
   function handleRemoteSeek(payload) {
-    if (!payload || payload.time < 1.0) return;
+    if (!payload || payload.time < SYNC.MIN_MEANINGFUL_TIME_S) return;
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
     const current = getCurrentVideoTime();
-    if (Math.abs(current - payload.time) < 0.35) return;
+    if (Math.abs(current - payload.time) < SYNC.EVENT_SEEK_THRESHOLD_S) return;
 
     addEventLog(`⏩ Jumped to ${timeStr}`, sender);
     lastUserActionTime = Date.now();
     isSyncActionInProgress = true;
     seekVideo(payload.time);
-    setTimeout(() => (isSyncActionInProgress = false), 1000);
+    releaseSyncLock();
   }
 
   function handleRemoteHeartbeat(payload) {
     if (isSyncActionInProgress || isHost) return;
 
-    // Grace window: If an explicit play/pause/seek occurred in the last 3.5s,
-    // ignore passive heartbeat state to allow local/peer stream startup and buffering
-    if (Date.now() - lastUserActionTime < 3500) return;
+    if (Date.now() - lastUserActionTime < SYNC.USER_ACTION_GRACE_MS) return;
 
     if (payload.videoUrl && !isHost) {
       const currentUrl = window.location.href;
@@ -2262,33 +2331,32 @@
       }
     }
 
-    const current = getCurrentVideoTime();
-    const latency = Math.max(0, Math.min(0.4, (Date.now() - (payload.sentAt || Date.now())) / 1000));
-    const hostExpectedTime = payload.isPlaying ? payload.time + latency : payload.time;
-    const delta = hostExpectedTime - current;
+    const now = Date.now();
+    const correction = computeHeartbeatCorrection({
+      currentTime: getCurrentVideoTime(),
+      payloadTime: payload.time,
+      isPlaying: !!payload.isPlaying,
+      sentAt: payload.sentAt || now,
+      now,
+    });
 
-    if (payload.isPlaying) {
-      if (!isVideoPlaying()) playVideo();
-      if (Math.abs(delta) > 1.2 && hostExpectedTime > 0.5) {
-        // Large drift: Hard seek
-        seekVideo(hostExpectedTime);
-        setPlaybackRate(1.0);
-      } else if (delta > 0.15) {
-        // Viewer is slightly behind host: gently speed up without pitch distortion
-        setPlaybackRate(1.04);
-      } else if (delta < -0.15) {
-        // Viewer is slightly ahead of host: gently slow down without pitch distortion
-        setPlaybackRate(0.96);
-      } else {
-        // Frame-perfect sync (within 150ms deadband)
-        setPlaybackRate(1.0);
+    if (correction.ensurePlaying && !isVideoPlaying()) {
+      playVideo();
+    }
+
+    if (correction.seekTo !== undefined) {
+      seekVideo(correction.seekTo);
+      if (correction.ensurePaused && isVideoPlaying()) {
+        pauseVideo();
+      }
+      if (correction.playbackRate !== undefined) {
+        setPlaybackRate(correction.playbackRate);
       }
     } else {
-      setPlaybackRate(1.0);
-      if (Math.abs(delta) > 0.2 && hostExpectedTime > 0.5) {
-        seekVideo(hostExpectedTime);
+      if (correction.playbackRate !== undefined) {
+        setPlaybackRate(correction.playbackRate);
       }
-      if (isVideoPlaying()) {
+      if (correction.ensurePaused && isVideoPlaying()) {
         pauseVideo();
       }
     }
@@ -2325,9 +2393,9 @@
       }
     }
 
-    const latency = Math.max(0, Math.min(0.4, (Date.now() - (payload.sentAt || Date.now())) / 1000));
-    const target = payload.time + (payload.isPlaying && latency > 0 && latency < 2 ? latency : 0);
-    if (target > 0.5) {
+    const now = Date.now();
+    const target = playTargetTime(payload.time, payload.sentAt || now, now);
+    if (target > SYNC.MIN_MEANINGFUL_TIME_S) {
       seekVideo(target);
     }
     if (payload.isPlaying) playVideo();
@@ -2339,7 +2407,7 @@
     heartbeatTimer = setInterval(() => {
       if (!activeChannel || isSyncActionInProgress) return;
       const current = getCurrentVideoTime();
-      if (current < 0.5 && !isVideoPlaying()) return; // Do not broadcast inactive 0 state
+      if (current < SYNC.MIN_MEANINGFUL_TIME_S && !isVideoPlaying()) return;
 
       activeChannel.send({
         type: "broadcast",
@@ -2353,7 +2421,7 @@
           sentAt: Date.now(),
         },
       });
-    }, 2000);
+    }, SYNC.HEARTBEAT_INTERVAL_MS);
   }
 
   function attachLocalPlayerListeners() {
@@ -2407,7 +2475,7 @@
     v.addEventListener("seeked", () => {
       if (isSyncActionInProgress || !activeChannel) return;
       const time = v.currentTime;
-      if (time < 1.0) return; // Suppress initial stream startup seek to 00:00
+      if (time < SYNC.MIN_MEANINGFUL_TIME_S) return;
       lastUserActionTime = Date.now();
       activeChannel.send({
         type: "broadcast",
@@ -2417,7 +2485,6 @@
       addEventLog(`⏩ You jumped to ${formatTime(time)}`, currentUserName);
     });
   }
-
   // Track URL changes when host opens a movie or switches episodes
   let lastRecordedUrl = window.location.href;
   function checkUrlChange() {
@@ -2464,7 +2531,6 @@
       setWakeLock(playing);
     }
   }, 2000);
-
   // Check URL hash for auto-join (#justus=ju_xxx)
   function checkUrlHash() {
     const hash = window.location.hash;
@@ -2520,7 +2586,6 @@
     updatePillState();
     renderDrawerContent();
   }
-
   // Purge room only when host CLOSES the tab/browser — not on same-site navigation.
   // We use the visibilitychange + pagehide pattern because beforeunload fires on both
   // tab close AND same-site navigation, which was destroying the room when the host

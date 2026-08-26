@@ -5,6 +5,9 @@ import AVFoundation
 
 class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     private var floatingHubButton: UIButton?
+    private var hubDragOrigin: CGPoint = .zero
+    private var hubDidDrag = false
+    private let hubClickThreshold: CGFloat = 10
 
     private let safariDesktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
 
@@ -107,8 +110,9 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
         btn.layer.shadowRadius = 8
         
         btn.addTarget(self, action: #selector(didTapHubButton), for: .touchUpInside)
-        
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handleHubPan(_:)))
+        pan.cancelsTouchesInView = false
         btn.addGestureRecognizer(pan)
         
         self.view.addSubview(btn)
@@ -122,13 +126,36 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
         ])
     }
     
-    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+    @objc private func handleHubPan(_ gesture: UIPanGestureRecognizer) {
         guard let btn = floatingHubButton else { return }
-        let translation = gesture.translation(in: self.view)
-        btn.center = CGPoint(x: btn.center.x + translation.x, y: btn.center.y + translation.y)
-        gesture.setTranslation(.zero, in: self.view)
+        let superview = self.view!
+
+        switch gesture.state {
+        case .began:
+            hubDragOrigin = btn.center
+            hubDidDrag = false
+        case .changed:
+            let translation = gesture.translation(in: superview)
+            if hypot(translation.x, translation.y) >= hubClickThreshold {
+                hubDidDrag = true
+            }
+            var newCenter = CGPoint(x: hubDragOrigin.x + translation.x, y: hubDragOrigin.y + translation.y)
+            let halfW = btn.bounds.width / 2
+            let halfH = btn.bounds.height / 2
+            let safeFrame = superview.safeAreaLayoutGuide.layoutFrame
+            newCenter.x = max(safeFrame.minX + halfW, min(safeFrame.maxX - halfW, newCenter.x))
+            newCenter.y = max(safeFrame.minY + halfH, min(safeFrame.maxY - halfH, newCenter.y))
+            btn.center = newCenter
+        case .ended, .cancelled:
+            if !hubDidDrag {
+                didTapHubButton()
+            }
+            gesture.setTranslation(.zero, in: superview)
+        default:
+            break
+        }
     }
-    
+
     @objc private func didTapHubButton() {
         if let targetUrl = URL(string: "https://just-us-web.vercel.app/mobile") {
             webView?.load(URLRequest(url: targetUrl))

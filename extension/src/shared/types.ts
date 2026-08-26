@@ -28,7 +28,7 @@ export interface RoomSession {
 
 export type ExtensionMessage =
   | { type: "JOIN_ROOM"; payload: { roomId: string; userName: string; isHost?: boolean } }
-  | { type: "LEAVE_ROOM" }
+  | { type: "LEAVE_ROOM"; payload?: { roomId?: string; isHost?: boolean } }
   | { type: "GET_STATUS" }
   | { type: "SET_STATUS"; payload: Partial<RoomSession> }
   | { type: "GET_LIVEKIT_TOKEN"; payload: { roomName: string; identity: string; isHost?: boolean } };

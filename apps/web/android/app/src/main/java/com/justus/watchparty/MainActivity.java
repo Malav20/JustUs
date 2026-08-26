@@ -230,6 +230,8 @@ public class MainActivity extends BridgeActivity {
         floatingHubButton.setVisibility(View.GONE);
 
         floatingHubButton.setOnTouchListener(new View.OnTouchListener() {
+            private boolean didDrag = false;
+
             @Override
             public boolean onTouch(View view, MotionEvent event) {
                 switch (event.getActionMasked()) {
@@ -238,12 +240,17 @@ public class MainActivity extends BridgeActivity {
                         dY = view.getY() - event.getRawY();
                         startX = event.getRawX();
                         startY = event.getRawY();
+                        didDrag = false;
                         return true;
 
                     case MotionEvent.ACTION_MOVE:
+                        float diffMoveX = Math.abs(event.getRawX() - startX);
+                        float diffMoveY = Math.abs(event.getRawY() - startY);
+                        if (diffMoveX >= CLICK_ACTION_THRESHOLD || diffMoveY >= CLICK_ACTION_THRESHOLD) {
+                            didDrag = true;
+                        }
                         float newX = event.getRawX() + dX;
                         float newY = event.getRawY() + dY;
-                        // Keep within screen bounds
                         View parent = (View) view.getParent();
                         if (parent != null) {
                             newX = Math.max(0, Math.min(newX, parent.getWidth() - view.getWidth()));
@@ -254,9 +261,7 @@ public class MainActivity extends BridgeActivity {
                         return true;
 
                     case MotionEvent.ACTION_UP:
-                        float diffX = Math.abs(event.getRawX() - startX);
-                        float diffY = Math.abs(event.getRawY() - startY);
-                        if (diffX < CLICK_ACTION_THRESHOLD && diffY < CLICK_ACTION_THRESHOLD) {
+                        if (!didDrag) {
                             view.performClick();
                         }
                         return true;
