@@ -138,13 +138,13 @@ export class TelepartySidebarUI {
       const room = new Room({ adaptiveStream: true, dynacast: true });
 
       room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
-        this.addParticipantJoinLog(participant.identity, "#4ECDC4");
-        this.setParticipantCount(2);
+        const displayName = participant.name || participant.identity;
+        this.addEventLog(`${displayName} joined video call 📹`, "#4ECDC4");
       });
 
       room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
-        this.addEventLog(`${participant.identity} left the party 👋`, "#FF6B6B");
-        this.setParticipantCount(1);
+        const displayName = participant.name || participant.identity;
+        this.addEventLog(`${displayName} left video call 📹`, "#FF6B6B");
         const waitingOverlay = this.shadow?.getElementById("waiting-overlay");
         if (waitingOverlay) waitingOverlay.classList.remove("hidden");
       });

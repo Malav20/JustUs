@@ -1376,7 +1376,7 @@
 
     loadLiveKitSDK(async () => {
       try {
-        const participantId = currentUserName + "_" + Math.random().toString(36).substring(2, 6);
+        const participantId = currentUserName;
         const tokenResult = await fetchLiveKitTokenWithRetry(activeRoomId, participantId, currentUserName, isHost);
 
         if (!tokenResult || !tokenResult.token) {
