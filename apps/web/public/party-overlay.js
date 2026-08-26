@@ -445,7 +445,6 @@
       visibility: visible !important;
     }
     .floating-pill:active { transform: translate3d(0, 0, 0) scale(0.96) !important; }
-    .floating-pill.pressed { transform: translate3d(0, 0, 0) scale(0.96) !important; background: #1b1e30 !important; }
     .floating-pill.hidden { display: none !important; }
     .floating-pill.video-pill {
       background: #1e1b4b !important;
@@ -1043,62 +1042,37 @@
     }
   }
 
-  // Unified Pointer Events tap handler (mouse + touch + pen in one model).
-  // Mixing touchstart+click caused inconsistent double-fires / missed taps in
-  // some WKWebView builds. A single pointerdown/pointerup pair with a small
-  // movement+time tolerance gives native-feeling press/release behavior and
-  // lets an accidental scroll/drag NOT register as a tap.
-  function attachTapHandler(el, callback, { moveTolerance = 10, timeTolerance = 500, debounceMs = 350 } = {}) {
-    let tracking = false;
-    let startX = 0, startY = 0, startTime = 0;
-    let lastFireTime = 0;
-    let activePointerId = null;
-
-    function onPointerDown(e) {
-      // Ignore secondary touches / right-clicks
-      if (e.button !== undefined && e.button !== 0) return;
-      tracking = true;
-      activePointerId = e.pointerId;
-      startX = e.clientX;
-      startY = e.clientY;
-      startTime = Date.now();
-      el.classList.add("pressed");
-      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+  // Use touchstart as primary trigger — it fires BEFORE YouTube's
+  // gesture detection can intercept/consume the touch chain.
+  // preventDefault() on touchstart cancels scroll AND synthetic click,
+  // guaranteeing exactly one toggle per tap.
+  let lastPartyTapTime = 0;
+  function onPartyPillTap(e) {
+    if (e) {
+      try { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); } catch (err) {}
     }
-
-    function onPointerUp(e) {
-      if (!tracking || (activePointerId !== null && e.pointerId !== activePointerId)) return;
-      tracking = false;
-      el.classList.remove("pressed");
-      try { el.releasePointerCapture(e.pointerId); } catch (err) {}
-
-      const dx = Math.abs(e.clientX - startX);
-      const dy = Math.abs(e.clientY - startY);
-      const dt = Date.now() - startTime;
-      if (dx > moveTolerance || dy > moveTolerance || dt > timeTolerance) return; // treat as scroll/drag, not a tap
-
-      const now = Date.now();
-      if (now - lastFireTime < debounceMs) return;
-      lastFireTime = now;
-
-      try { e.preventDefault(); e.stopPropagation(); } catch (err) {}
-      callback();
-    }
-
-    function onPointerCancel() {
-      tracking = false;
-      el.classList.remove("pressed");
-    }
-
-    el.addEventListener("pointerdown", onPointerDown, { passive: true });
-    el.addEventListener("pointerup", onPointerUp, { passive: false });
-    el.addEventListener("pointercancel", onPointerCancel, { passive: true });
-    // Swallow any residual synthetic click so downstream page handlers never see it
-    el.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); });
+    const now = Date.now();
+    if (now - lastPartyTapTime < 400) return;
+    lastPartyTapTime = now;
+    toggleDrawer();
   }
 
-  attachTapHandler(partyPill, toggleDrawer);
-  attachTapHandler(videoPill, toggleVideoCallWindow);
+  partyPill.addEventListener("touchstart", onPartyPillTap, { passive: false, capture: false });
+  partyPill.addEventListener("click", onPartyPillTap);
+
+  let lastVideoTapTime = 0;
+  function onVideoPillTap(e) {
+    if (e) {
+      try { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); } catch (err) {}
+    }
+    const now = Date.now();
+    if (now - lastVideoTapTime < 400) return;
+    lastVideoTapTime = now;
+    toggleVideoCallWindow();
+  }
+
+  videoPill.addEventListener("touchstart", onVideoPillTap, { passive: false, capture: false });
+  videoPill.addEventListener("click", onVideoPillTap);
 
   // Prevent touches inside drawer from reaching YouTube's gesture handlers
   drawer.addEventListener("touchstart", function(e) { e.stopPropagation(); }, { passive: false });
@@ -1206,44 +1180,20 @@
   window.addEventListener("pointermove", onWindowPointerMove);
   window.addEventListener("pointerup", onWindowPointerUp);
 
-  // Taps on the overlay's own background (not a button, not the control bar)
-  // toggle the controls closed again — the same "tap video to hide controls"
-  // pattern FaceTime/other call apps use. Taps on buttons/control-bar just
-  // stop propagation (so they don't also start a window-drag) and keep the
-  // auto-hide timer alive; their own handlers (setupControlButton) fire the
-  // actual action.
-  let controlsBgTapStartX = 0, controlsBgTapStartY = 0;
+  // Prevent taps inside controls overlay from closing it
   videoControls.addEventListener("pointerdown", (e) => {
     e.stopPropagation();
-    controlsBgTapStartX = e.clientX;
-    controlsBgTapStartY = e.clientY;
-  });
-  videoControls.addEventListener("pointerup", (e) => {
-    e.stopPropagation();
-    if (e.target !== videoControls) {
-      // Landed on a child (control bar padding, close button wrapper, etc.) —
-      // let it live, just keep the overlay visible a bit longer.
-      resetControlsHideTimer();
-      return;
-    }
-    const dx = Math.abs(e.clientX - controlsBgTapStartX);
-    const dy = Math.abs(e.clientY - controlsBgTapStartY);
-    if (dx < 10 && dy < 10) {
-      toggleControlsOverlay();
-    }
+    resetControlsHideTimer();
   });
   videoControls.addEventListener("click", (e) => {
     e.stopPropagation();
+    resetControlsHideTimer();
   });
 
   // Resize Handlers
   let isResizingWindow = false;
   let resizeStartX = 0, resizeStartY = 0;
   let startWinWidth = 0, startWinHeight = 0;
-
-  let resizePointerId = null;
-  let resizeMoveScheduled = false;
-  let latestResizeEvent = null;
 
   function onWindowResizeStart(e) {
     if (e) {
@@ -1254,97 +1204,70 @@
       } catch (err) {}
     }
     isResizingWindow = true;
-    resizePointerId = e.pointerId;
-    resizeStartX = e.clientX;
-    resizeStartY = e.clientY;
+    const touch = e.touches ? e.touches[0] : e;
+    resizeStartX = touch.clientX;
+    resizeStartY = touch.clientY;
     startWinWidth = videoWindow.offsetWidth;
     startWinHeight = videoWindow.offsetHeight;
-    // Route all subsequent pointer events for this gesture straight to the
-    // handle, even if the finger slides off it — prevents losing the drag
-    // and prevents the same physical gesture from also being seen elsewhere.
-    try { resizeHandle.setPointerCapture(e.pointerId); } catch (err) {}
   }
 
   function onWindowResizeMove(e) {
-    if (!isResizingWindow || e.pointerId !== resizePointerId) return;
-    try { e.preventDefault(); } catch (err) {}
-    latestResizeEvent = e;
-    if (resizeMoveScheduled) return;
-    resizeMoveScheduled = true;
+    if (!isResizingWindow) return;
+    if (e) {
+      try { e.preventDefault(); } catch (err) {}
+    }
+    const touch = e.touches ? e.touches[0] : e;
+    if (!touch || typeof touch.clientX !== "number") return;
+    const deltaX = touch.clientX - resizeStartX;
+    const deltaY = touch.clientY - resizeStartY;
 
-    requestAnimationFrame(() => {
-      resizeMoveScheduled = false;
-      if (!isResizingWindow || !latestResizeEvent) return;
-      const deltaX = latestResizeEvent.clientX - resizeStartX;
-      const deltaY = latestResizeEvent.clientY - resizeStartY;
+    const rect = videoWindow.getBoundingClientRect();
+    const maxWidth = window.innerWidth - rect.left - 10;
+    const maxHeight = window.innerHeight - rect.top - 10;
 
-      const rect = videoWindow.getBoundingClientRect();
-      const maxWidth = window.innerWidth - rect.left - 10;
-      const maxHeight = window.innerHeight - rect.top - 10;
+    const newWidth = Math.max(160, Math.min(maxWidth, startWinWidth + deltaX));
+    const newHeight = Math.max(120, Math.min(maxHeight, startWinHeight + deltaY));
 
-      const newWidth = Math.max(160, Math.min(maxWidth, startWinWidth + deltaX));
-      const newHeight = Math.max(120, Math.min(maxHeight, startWinHeight + deltaY));
-
-      videoWindow.style.width = `${newWidth}px`;
-      videoWindow.style.height = `${newHeight}px`;
-    });
+    videoWindow.style.width = `${newWidth}px`;
+    videoWindow.style.height = `${newHeight}px`;
   }
 
-  function onWindowResizeEnd(e) {
-    if (e && e.pointerId !== resizePointerId) return;
+  function onWindowResizeEnd() {
     isResizingWindow = false;
-    resizePointerId = null;
-    try { if (e) resizeHandle.releasePointerCapture(e.pointerId); } catch (err) {}
   }
 
-  // Pointer Events alone cover mouse + touch + pen — no separate touch
-  // listeners needed (that was causing every drag frame to apply twice).
-  resizeHandle.addEventListener("pointerdown", onWindowResizeStart, { passive: false });
-  resizeHandle.addEventListener("pointermove", onWindowResizeMove, { passive: false });
-  resizeHandle.addEventListener("pointerup", onWindowResizeEnd);
-  resizeHandle.addEventListener("pointercancel", onWindowResizeEnd);
+  resizeHandle.addEventListener("pointerdown", onWindowResizeStart);
+  resizeHandle.addEventListener("touchstart", onWindowResizeStart, { passive: false });
+  window.addEventListener("pointermove", onWindowResizeMove);
+  window.addEventListener("touchmove", onWindowResizeMove, { passive: false });
+  window.addEventListener("pointerup", onWindowResizeEnd);
+  window.addEventListener("touchend", onWindowResizeEnd);
 
-  // Reliable, single-event-model (Pointer Events) tap handler for call controls.
-  // Fires on release (not press) so a finger that slides off the button before
-  // lifting cancels the action — standard native button behavior — while still
-  // feeling instant since there's no artificial delay.
+  // Helper to reliably attach click & touch events with instant touch response
   function setupControlButton(id, callback) {
     const btn = shadow.getElementById(id);
     if (!btn) return;
     let lastHandled = 0;
-    let tracking = false;
-    let startX = 0, startY = 0;
-
-    btn.addEventListener("pointerdown", (e) => {
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      tracking = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      try { btn.setPointerCapture(e.pointerId); } catch (err) {}
-      resetControlsHideTimer();
-    }, { passive: false });
-
-    btn.addEventListener("pointerup", (e) => {
-      e.stopPropagation();
-      if (!tracking) return;
-      tracking = false;
-      try { btn.releasePointerCapture(e.pointerId); } catch (err) {}
-
-      const dx = Math.abs(e.clientX - startX);
-      const dy = Math.abs(e.clientY - startY);
-      if (dx > 14 || dy > 14) return; // dragged off the button — treat as cancel
-
+    const handleAction = (e) => {
+      if (e) {
+        try {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+        } catch (err) {}
+      }
       const now = Date.now();
       if (now - lastHandled < 300) return;
       lastHandled = now;
       resetControlsHideTimer();
       callback();
+    };
+    btn.addEventListener("touchstart", handleAction, { passive: false });
+    btn.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
     });
-
-    btn.addEventListener("pointercancel", () => { tracking = false; });
-    // Swallow any residual synthetic click
-    btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); });
+    btn.addEventListener("click", handleAction);
   }
 
   // Video Window Control Buttons
@@ -1385,16 +1308,6 @@
   let isCamEnabled = true;
   let currentFacingMode = "user";
   let isLiveKitConnecting = false;
-
-  // The PIP window defaults to 240x180 CSS px and can be resized up to 85vw/80vh.
-  // Capturing at 480x360 while the room only budgeted for 216p, with simulcast
-  // and adaptive streaming both off, meant the client always decoded a
-  // fixed, larger-than-needed VP8 (software-decode-only on iOS) frame
-  // regardless of how small the window actually was on screen — the main
-  // source of the reported lag. One shared, modest capture size + simulcast +
-  // adaptiveStream lets LiveKit pick the layer that actually matches what's
-  // rendered, and H.264 lets iOS decode it in hardware.
-  const CALL_VIDEO_CAPTURE = { width: 360, height: 270, frameRate: 20 };
 
   function loadLiveKitSDK(callback) {
     if (window.LivekitClient) {
@@ -1487,31 +1400,14 @@
         const { token, wsUrl } = tokenResult;
 
         const room = new window.LivekitClient.Room({
-          // Let LiveKit request the resolution/bitrate that actually matches
-          // the rendered <video> element size (crucial since this is a small,
-          // resizable PIP window, not a full-screen call).
-          adaptiveStream: true,
-          // Only encode/forward simulcast layers that a subscriber is
-          // actually using — saves CPU/bandwidth on a 1:1 call.
-          dynacast: true,
+          adaptiveStream: false,
+          dynacast: false,
           publishDefaults: {
-            // Publish low + medium layers so adaptiveStream has something to
-            // downgrade to when the PIP is small or the network is weak.
-            simulcast: true,
-            videoSimulcastLayers: [
-              window.LivekitClient.VideoPresets?.h90,
-              window.LivekitClient.VideoPresets?.h180,
-            ].filter(Boolean),
-            // H.264 gets hardware-accelerated decode on iOS/Safari; VP8 is
-            // software-decode-only there and was almost certainly the
-            // single biggest contributor to the reported lag/heat.
-            videoCodec: "h264",
-            backupCodec: { codec: "vp8" },
-            dtx: true,
-            red: true,
+            simulcast: false,
+            videoCodec: "vp8",
           },
           videoCaptureDefaults: {
-            resolution: window.LivekitClient.VideoPresets?.h360?.resolution || CALL_VIDEO_CAPTURE,
+            resolution: window.LivekitClient.VideoPresets?.h216?.resolution || { width: 384, height: 216, frameRate: 15 },
           },
         });
         livekitRoom = room;
@@ -1578,13 +1474,11 @@
           console.warn("[JustUS] Microphone setup notice:", e);
         }
 
-        // 2. Front/User Camera track — sized for the PIP window; simulcast +
-        // adaptiveStream (configured above) take care of scaling it down
-        // further when the window is small or the network is weak.
+        // 2. Front/User Camera track (Crisp 480x360 @ 24fps)
         try {
           localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
             facingMode: currentFacingMode || "user",
-            resolution: CALL_VIDEO_CAPTURE,
+            resolution: { width: 480, height: 360, frameRate: 24 },
           });
           const localVideoEl = shadow.getElementById("ju-local-video");
           if (localVideoEl && localVideoTrack) {
@@ -1694,7 +1588,7 @@
       try {
         localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
           facingMode: currentFacingMode || "user",
-          resolution: CALL_VIDEO_CAPTURE,
+          resolution: { width: 480, height: 360, frameRate: 24 },
         });
         if (localVideoEl && localVideoTrack) {
           localVideoEl.muted = true;
@@ -1727,7 +1621,7 @@
       try {
         localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
           facingMode: currentFacingMode,
-          resolution: CALL_VIDEO_CAPTURE,
+          resolution: { width: 480, height: 360, frameRate: 24 },
         });
         if (localVideoEl && localVideoTrack) {
           localVideoEl.muted = true;
@@ -2335,9 +2229,6 @@
       const targetUrl = normalizeStreamingUrl(payload.videoUrl);
       const isVideoPage = targetUrl.includes("/watch") || targetUrl.includes("/title/") || targetUrl.includes("/video/");
       if (!isSameVideoUrl(currentUrl, targetUrl) && isVideoPage) {
-        // NOTE: 'sep' was previously referenced here undefined, throwing a
-        // ReferenceError that silently broke the heartbeat listener the
-        // first time a host switched videos while it was active.
         const sep = targetUrl.includes("#") ? "&" : "#";
         window.location.href = targetUrl + sep + "justus=" + activeRoomId;
         return;
