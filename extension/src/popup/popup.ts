@@ -1,5 +1,11 @@
 import { CONFIG } from "../shared/constants";
-import { RoomSession } from "../shared/types";
+import {
+  buildPartyNavigateUrl,
+  fetchRoomById,
+  inferServiceFromUrl,
+  isStreamingUrl,
+} from "../shared/room-utils";
+import { RoomSession, StreamingService } from "../shared/types";
 
 // DOM Views
 const readyView = document.getElementById("ready-view") as HTMLElement;
@@ -15,14 +21,54 @@ const btnStartParty = document.getElementById("btn-start-party") as HTMLButtonEl
 
 const joinCodeInput = document.getElementById("join-code-input") as HTMLInputElement;
 const btnQuickJoin = document.getElementById("btn-quick-join") as HTMLButtonElement;
+const inactiveJoinCodeInput = document.getElementById("inactive-join-code-input") as HTMLInputElement;
+const btnInactiveJoin = document.getElementById("btn-inactive-join") as HTMLButtonElement;
 
 const partyUrlInput = document.getElementById("party-url-input") as HTMLInputElement;
 const btnCopyUrl = document.getElementById("btn-copy-url") as HTMLButtonElement;
 const statRoomCode = document.getElementById("stat-room-code") as HTMLElement;
+const btnOpenPartyVideo = document.getElementById("btn-open-party-video") as HTMLButtonElement;
 const btnStopParty = document.getElementById("btn-stop-party") as HTMLButtonElement;
 
 let activeTabId: number | undefined;
 let activeTabUrl = "";
+let currentSession: RoomSession | null = null;
+
+function parseRoomCode(raw: string): string {
+  let code = raw.trim().toUpperCase();
+  if (!code) return "";
+
+  if (code.includes("/JOIN/")) {
+    const parts = code.split("/JOIN/");
+    code = parts[1].split(/[?#]/)[0];
+  } else if (code.includes("JUSTUS=")) {
+    code = code.split("JUSTUS=")[1].split("&")[0];
+  }
+
+  return code;
+}
+
+function serviceFromTabUrl(url: string): StreamingService {
+  if (url.includes("netflix.com")) return "netflix";
+  if (url.includes("primevideo.com") || url.includes("amazon.")) return "prime";
+  if (url.includes("youtube.com") || url.includes("youtu.be")) return "youtube";
+  return "generic";
+}
+
+function updateOpenPartyVideoButton() {
+  if (!btnOpenPartyVideo || !currentSession) {
+    btnOpenPartyVideo?.classList.add("hidden");
+    return;
+  }
+
+  const needsNavigation =
+    !currentSession.isHost &&
+    currentSession.roomId &&
+    currentSession.status !== "idle" &&
+    !isStreamingUrl(activeTabUrl);
+
+  btnOpenPartyVideo.classList.toggle("hidden", !needsNavigation);
+}
 
 // Check active tab platform
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -30,18 +76,14 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   activeTabId = currentTab?.id;
   activeTabUrl = currentTab?.url || "";
 
-  const isStreamingPage =
-    activeTabUrl.includes("netflix.com") ||
-    activeTabUrl.includes("primevideo.com") ||
-    activeTabUrl.includes("amazon.") ||
-    activeTabUrl.includes("youtube.com") ||
-    activeTabUrl.includes("youtu.be");
+  const isStreamingPage = isStreamingUrl(activeTabUrl);
 
-  // Check stored session
   chrome.runtime.sendMessage({ type: "GET_STATUS" }, (response) => {
     const session: RoomSession = response?.session;
     if (session && session.roomId && session.status !== "idle") {
+      currentSession = session;
       showActiveView(session);
+      updateOpenPartyVideoButton();
     } else if (isStreamingPage) {
       showReadyView();
     } else {
@@ -59,6 +101,7 @@ function showReadyView() {
 }
 
 function showActiveView(session: RoomSession) {
+  currentSession = session;
   readyView.classList.add("hidden");
   activePartyView.classList.remove("hidden");
   inactiveTabView.classList.add("hidden");
@@ -67,6 +110,7 @@ function showActiveView(session: RoomSession) {
 
   statRoomCode.textContent = session.roomId;
   partyUrlInput.value = `${CONFIG.WEB_API_URL}/join/${session.roomId}`;
+  updateOpenPartyVideoButton();
 }
 
 function showInactiveView() {
@@ -77,7 +121,6 @@ function showInactiveView() {
   statusText.textContent = "Not on video";
 }
 
-// Start Party
 function generateRoomCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let result = "";
@@ -87,21 +130,101 @@ function generateRoomCode(): string {
   return result;
 }
 
+async function navigateTabToParty(videoUrl: string, roomId: string, userName: string) {
+  const targetUrl = buildPartyNavigateUrl(videoUrl, roomId, userName);
+
+  if (activeTabId) {
+    await chrome.tabs.update(activeTabId, { url: targetUrl });
+    return;
+  }
+
+  const tab = await chrome.tabs.create({ url: targetUrl });
+  activeTabId = tab.id;
+  activeTabUrl = targetUrl;
+}
+
+async function joinPartyWithCode(rawCode: string, userName = "Viewer", joinButton?: HTMLButtonElement) {
+  const code = parseRoomCode(rawCode);
+  if (!code) return;
+
+  if (joinButton) {
+    joinButton.disabled = true;
+    joinButton.textContent = "Joining...";
+  }
+
+  try {
+    const room = await fetchRoomById(code, CONFIG.WEB_API_URL);
+    const videoUrl = room?.video_url || "";
+    const service = (room?.service as StreamingService) || inferServiceFromUrl(videoUrl);
+
+    const session: RoomSession = {
+      roomId: code,
+      userName,
+      isHost: false,
+      service,
+      videoUrl,
+      status: "connecting",
+      createdAt: Date.now(),
+    };
+
+    chrome.runtime.sendMessage({
+      type: "JOIN_ROOM",
+      payload: {
+        roomId: code,
+        userName,
+        isHost: false,
+        videoUrl,
+        service,
+      },
+    });
+
+    await navigateTabToParty(videoUrl, code, userName);
+    showActiveView(session);
+  } catch (err) {
+    console.error("[JustUS Popup] Join failed:", err);
+  } finally {
+    if (joinButton) {
+      joinButton.disabled = false;
+      joinButton.textContent = "Join";
+    }
+  }
+}
+
+async function openHostVideoForSession() {
+  if (!currentSession || currentSession.isHost || !currentSession.roomId) return;
+
+  btnOpenPartyVideo.disabled = true;
+  btnOpenPartyVideo.textContent = "Opening video...";
+
+  try {
+    let videoUrl = currentSession.videoUrl || "";
+    if (!videoUrl) {
+      const room = await fetchRoomById(currentSession.roomId, CONFIG.WEB_API_URL);
+      videoUrl = room?.video_url || "";
+    }
+
+    await navigateTabToParty(videoUrl, currentSession.roomId, currentSession.userName || "Viewer");
+
+    currentSession = { ...currentSession, videoUrl };
+    chrome.runtime.sendMessage({
+      type: "SET_STATUS",
+      payload: { videoUrl },
+    });
+  } finally {
+    btnOpenPartyVideo.disabled = false;
+    btnOpenPartyVideo.textContent = "Open Host Video";
+  }
+}
+
+// Start Party
 btnStartParty?.addEventListener("click", async () => {
   const hostName = hostNameInput.value.trim() || "Host";
   const newRoomId = generateRoomCode();
-  const hostOnly = hostOnlyToggle?.checked ?? true;
 
   btnStartParty.disabled = true;
   btnStartParty.textContent = "Starting party...";
 
-  const serviceType = activeTabUrl.includes("netflix.com")
-    ? "netflix"
-    : activeTabUrl.includes("primevideo.com") || activeTabUrl.includes("amazon.")
-    ? "prime"
-    : activeTabUrl.includes("youtube.com") || activeTabUrl.includes("youtu.be")
-    ? "youtube"
-    : "generic";
+  const serviceType = serviceFromTabUrl(activeTabUrl);
 
   const session: RoomSession = {
     roomId: newRoomId,
@@ -113,7 +236,6 @@ btnStartParty?.addEventListener("click", async () => {
     createdAt: Date.now(),
   };
 
-  // Create room in backend database
   fetch(`${CONFIG.WEB_API_URL}/api/rooms`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -126,91 +248,46 @@ btnStartParty?.addEventListener("click", async () => {
     }),
   }).catch(() => {});
 
-  // 1. Tell background service worker
   chrome.runtime.sendMessage({
     type: "JOIN_ROOM",
     payload: {
       roomId: newRoomId,
       userName: hostName,
       isHost: true,
+      videoUrl: activeTabUrl,
+      service: serviceType,
     },
   });
 
-  // 2. Direct message to active tab to mount Teleparty sidebar immediately
   if (activeTabId) {
-    chrome.tabs.sendMessage(
-      activeTabId,
-      { type: "START_PARTY", session },
-      (res) => {
-        // If content script was not yet loaded into active tab, execute it directly
-        if (chrome.runtime.lastError) {
-          chrome.scripting.executeScript({
-            target: { tabId: activeTabId! },
-            files: ["content.js"],
-          });
-        }
+    chrome.tabs.sendMessage(activeTabId, { type: "START_PARTY", session }, () => {
+      if (chrome.runtime.lastError) {
+        chrome.scripting.executeScript({
+          target: { tabId: activeTabId! },
+          files: ["content.js"],
+        });
       }
-    );
+    });
   }
 
   showActiveView(session);
+  btnStartParty.disabled = false;
+  btnStartParty.textContent = "Start the party";
 });
 
-// Quick Join
+// Quick Join (streaming tab view)
 btnQuickJoin?.addEventListener("click", () => {
-  let code = joinCodeInput.value.trim().toUpperCase();
-  if (!code) return;
+  joinPartyWithCode(joinCodeInput.value, "Viewer", btnQuickJoin);
+});
 
-  if (code.includes("/JOIN/")) {
-    const parts = code.split("/JOIN/");
-    code = parts[1].split(/[?#]/)[0];
-  } else if (code.includes("JUSTUS=")) {
-    code = code.split("JUSTUS=")[1].split("&")[0];
-  }
+// Quick Join (inactive tab view)
+btnInactiveJoin?.addEventListener("click", () => {
+  const code = inactiveJoinCodeInput?.value || joinCodeInput?.value || "";
+  joinPartyWithCode(code, "Viewer", btnInactiveJoin);
+});
 
-  const serviceType = activeTabUrl.includes("netflix.com")
-    ? "netflix"
-    : activeTabUrl.includes("primevideo.com") || activeTabUrl.includes("amazon.")
-    ? "prime"
-    : activeTabUrl.includes("youtube.com") || activeTabUrl.includes("youtu.be")
-    ? "youtube"
-    : "generic";
-
-  const session: RoomSession = {
-    roomId: code,
-    userName: "Viewer",
-    isHost: false,
-    service: serviceType,
-    videoUrl: activeTabUrl,
-    status: "connecting",
-    createdAt: Date.now(),
-  };
-
-  chrome.runtime.sendMessage({
-    type: "JOIN_ROOM",
-    payload: {
-      roomId: code,
-      userName: "Viewer",
-      isHost: false,
-    },
-  });
-
-  if (activeTabId) {
-    chrome.tabs.sendMessage(
-      activeTabId,
-      { type: "START_PARTY", session },
-      (res) => {
-        if (chrome.runtime.lastError) {
-          chrome.scripting.executeScript({
-            target: { tabId: activeTabId! },
-            files: ["content.js"],
-          });
-        }
-      }
-    );
-  }
-
-  showActiveView(session);
+btnOpenPartyVideo?.addEventListener("click", () => {
+  openHostVideoForSession();
 });
 
 // Copy Invite Link
@@ -227,7 +304,12 @@ btnStopParty?.addEventListener("click", () => {
     if (activeTabId) {
       chrome.tabs.sendMessage(activeTabId, { type: "STOP_PARTY" });
     }
-    showReadyView();
+    currentSession = null;
+    if (isStreamingUrl(activeTabUrl)) {
+      showReadyView();
+    } else {
+      showInactiveView();
+    }
   });
 });
 

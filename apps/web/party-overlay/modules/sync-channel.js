@@ -67,6 +67,7 @@
       addEventLog(`🎉 ${currentUserName} created watch party [${newRoomId}]!`, currentUserName);
       updatePillState();
       renderDrawerContent();
+      scheduleAutoVideoCall();
     });
   }
 
@@ -88,6 +89,7 @@
       addEventLog(`🍿 You joined party [${cleanCode}]`, currentUserName);
       updatePillState();
       renderDrawerContent();
+      scheduleAutoVideoCall();
     });
   }
 

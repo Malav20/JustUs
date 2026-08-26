@@ -1,4 +1,4 @@
-import { Room, RoomEvent, Track, RemoteTrack, RemoteParticipant, LocalVideoTrack, LocalAudioTrack, createLocalVideoTrack, createLocalAudioTrack, ConnectionState, setLogLevel, LogLevel } from "livekit-client";
+import { Room, RoomEvent, Track, RemoteTrack, RemoteParticipant, LocalVideoTrack, LocalAudioTrack, createLocalAudioTrack, ConnectionState, setLogLevel, LogLevel } from "livekit-client";
 import { CONFIG } from "../../shared/constants";
 import { ChatMessage } from "../../shared/types";
 import { TELEPARTY_SIDEBAR_CSS } from "./teleparty-sidebar-styles";
@@ -86,6 +86,20 @@ export class TelepartySidebarUI {
     } else {
       this.addEventLog(`You joined the party 🍿`, this.avatarColor);
     }
+
+    this.startVideoCallPanel();
+  }
+
+  private startVideoCallPanel() {
+    const toggleVideoCallBtn = this.shadow?.getElementById("btn-toggle-video-call");
+    if (this.videoCallBoxEl) {
+      this.videoCallBoxEl.classList.remove("hidden");
+    }
+    this.isVideoCallOpen = true;
+    if (toggleVideoCallBtn) toggleVideoCallBtn.classList.add("active");
+    if (!this.livekitRoom) {
+      this.connectWebRTC(this.roomId, this.userName, this.isHost);
+    }
   }
 
   private recentJoinedEvents = new Set<string>();
@@ -127,11 +141,30 @@ export class TelepartySidebarUI {
     } catch (e) {
       console.warn("[Teleparty] track.attach failed:", e);
     }
+    const mediaTrack = track.mediaStreamTrack;
+    if (mediaTrack) {
+      try {
+        el.srcObject = new MediaStream([mediaTrack]);
+      } catch (e) {}
+    }
     el.muted = true;
     el.setAttribute("playsinline", "true");
     el.setAttribute("webkit-playsinline", "true");
     el.play().catch(() => {
       setTimeout(() => el.play().catch(() => {}), 200);
+    });
+  }
+
+  private subscribeRemoteVideoPublications(room: Room) {
+    room.remoteParticipants.forEach((participant) => {
+      participant.videoTrackPublications.forEach((pub) => {
+        if (!pub.isSubscribed && typeof pub.setSubscribed === "function") {
+          pub.setSubscribed(true);
+        }
+        if (pub.track) {
+          this.showRemoteVideo(pub.track as RemoteTrack);
+        }
+      });
     });
   }
 
@@ -141,16 +174,6 @@ export class TelepartySidebarUI {
     this.attachVideoToElement(track, this.remoteVideoEl);
     const waitingOverlay = this.shadow?.getElementById("waiting-overlay");
     if (waitingOverlay) waitingOverlay.classList.add("hidden");
-  }
-
-  private bindExistingRemoteVideo(room: Room) {
-    room.remoteParticipants.forEach((participant) => {
-      participant.videoTrackPublications.forEach((pub) => {
-        if (pub.track && pub.isSubscribed) {
-          this.showRemoteVideo(pub.track as RemoteTrack);
-        }
-      });
-    });
   }
 
   public async connectWebRTC(roomId: string, userName: string, isHost = false) {
@@ -181,6 +204,20 @@ export class TelepartySidebarUI {
         videoCaptureDefaults: {
           resolution: { width: 640, height: 480, frameRate: 24 },
         },
+        publishDefaults: {
+          simulcast: false,
+          videoCodec: "h264",
+        },
+      });
+
+      room.on(RoomEvent.LocalTrackPublished, (publication) => {
+        const track = publication.track;
+        if (!track || track.kind !== Track.Kind.Video) return;
+        this.localVideoTrack = track as LocalVideoTrack;
+        if (this.localVideoEl) {
+          this.attachVideoToElement(track as LocalVideoTrack, this.localVideoEl);
+        }
+        if (this.videoCallBoxEl) this.videoCallBoxEl.classList.remove("hidden");
       });
 
       room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
@@ -207,6 +244,13 @@ export class TelepartySidebarUI {
         }
       });
 
+      room.on(RoomEvent.TrackPublished, (publication, participant: RemoteParticipant) => {
+        if (participant.isLocal) return;
+        if (publication.kind === Track.Kind.Video && publication.track) {
+          this.showRemoteVideo(publication.track as RemoteTrack);
+        }
+      });
+
       room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
         track.detach();
       });
@@ -227,27 +271,11 @@ export class TelepartySidebarUI {
       }
 
       if (room.state === ConnectionState.Connected) {
-        this.bindExistingRemoteVideo(room);
+        this.subscribeRemoteVideoPublications(room);
 
         if (this.cameraEnabled) {
           try {
-            const localVideo = await createLocalVideoTrack({
-              resolution: { width: 640, height: 480, frameRate: 24 },
-            });
-            if (!this.cameraEnabled) {
-              localVideo.stop();
-              localVideo.mediaStreamTrack?.stop();
-            } else {
-              this.localVideoTrack = localVideo;
-              if (localVideo.mediaStreamTrack) {
-                this.localMediaTracks.push(localVideo.mediaStreamTrack);
-              }
-              if (this.videoCallBoxEl) this.videoCallBoxEl.classList.remove("hidden");
-              if (this.localVideoEl) {
-                this.attachVideoToElement(localVideo, this.localVideoEl);
-              }
-              await room.localParticipant.publishTrack(localVideo, { simulcast: false });
-            }
+            await room.localParticipant.setCameraEnabled(true);
           } catch (e: any) {
             console.warn("[JustUS] Video track failed:", e.message);
             this.addEventLog("⚠️ Camera unavailable — check browser permissions", "#FF6B6B");
@@ -256,18 +284,7 @@ export class TelepartySidebarUI {
 
         if (this.micEnabled) {
           try {
-            // Publish local mic track only if user still has mic enabled
-            const localAudio = await createLocalAudioTrack();
-            if (!this.micEnabled) {
-              localAudio.stop();
-              localAudio.mediaStreamTrack?.stop();
-            } else {
-              this.localAudioTrack = localAudio;
-              if (localAudio.mediaStreamTrack) {
-                this.localMediaTracks.push(localAudio.mediaStreamTrack);
-              }
-              await room.localParticipant.publishTrack(localAudio);
-            }
+            await room.localParticipant.setMicrophoneEnabled(true);
           } catch (e: any) {
             console.log("[JustUS] Audio track standby:", e.message);
           }
@@ -488,51 +505,17 @@ export class TelepartySidebarUI {
       this.cameraEnabled = !this.cameraEnabled;
       camBtn.classList.toggle("off", !this.cameraEnabled);
 
-      if (!this.cameraEnabled) {
-        // Complete hardware release so browser stops showing "Camera: Using now"
-        if (this.localVideoTrack) {
-          const trackToStop = this.localVideoTrack;
-          this.localVideoTrack = null;
-          try {
-            if (this.livekitRoom && this.livekitRoom.state === ConnectionState.Connected) {
-              const pub = this.livekitRoom.localParticipant.getTrackPublication(trackToStop.source);
-              if (pub) {
-                await this.livekitRoom.localParticipant.unpublishTrack(trackToStop, true).catch(() => {});
-              }
-            }
-            trackToStop.stop();
-            trackToStop.detach();
-            if (trackToStop.mediaStreamTrack) {
-              trackToStop.mediaStreamTrack.enabled = false;
-              trackToStop.mediaStreamTrack.stop();
-            }
-          } catch (e) {}
+      if (!this.livekitRoom || this.livekitRoom.state !== ConnectionState.Connected) return;
+
+      try {
+        if (!this.cameraEnabled) {
+          if (this.localVideoEl) this.localVideoEl.classList.add("hidden");
+          await this.livekitRoom.localParticipant.setCameraEnabled(false);
+        } else {
+          await this.livekitRoom.localParticipant.setCameraEnabled(true);
+          if (this.localVideoEl) this.localVideoEl.classList.remove("hidden");
         }
-        if (this.localVideoEl) {
-          this.localVideoEl.srcObject = null;
-        }
-      } else {
-        // Re-acquire hardware camera
-        if (this.livekitRoom && this.livekitRoom.state === ConnectionState.Connected) {
-          try {
-            const newVideo = await createLocalVideoTrack({
-              resolution: { width: 640, height: 480, frameRate: 24 },
-            });
-            if (this.cameraEnabled) {
-              this.localVideoTrack = newVideo;
-              if (this.localVideoEl) {
-                this.attachVideoToElement(newVideo, this.localVideoEl);
-              }
-              await this.livekitRoom.localParticipant.publishTrack(newVideo, { simulcast: false });
-            } else {
-              newVideo.stop();
-              newVideo.mediaStreamTrack?.stop();
-            }
-          } catch (e: any) {
-            console.log("[JustUS] Camera restart note:", e.message);
-          }
-        }
-      }
+      } catch (e) {}
     });
 
     // Audio & Volume Settings Toggle

@@ -27,7 +27,16 @@ export interface RoomSession {
 }
 
 export type ExtensionMessage =
-  | { type: "JOIN_ROOM"; payload: { roomId: string; userName: string; isHost?: boolean } }
+  | {
+      type: "JOIN_ROOM";
+      payload: {
+        roomId: string;
+        userName: string;
+        isHost?: boolean;
+        videoUrl?: string;
+        service?: StreamingService;
+      };
+    }
   | { type: "LEAVE_ROOM"; payload?: { roomId?: string; isHost?: boolean } }
   | { type: "GET_STATUS" }
   | { type: "SET_STATUS"; payload: Partial<RoomSession> }

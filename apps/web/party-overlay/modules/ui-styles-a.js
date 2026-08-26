@@ -119,12 +119,15 @@
     }
 
     .remote-video-feed {
+      position: absolute !important;
+      inset: 0 !important;
       width: 100% !important;
       height: 100% !important;
       object-fit: cover !important;
       display: block !important;
       background: #090A10 !important;
       pointer-events: none !important;
+      z-index: 0 !important;
     }
 
     /* Local self-view PIP positioned in top-left to eliminate control button collision */

@@ -142,6 +142,11 @@
       : { width: 480, height: 360, frameRate: 24 };
   }
 
+  /** H.264 decodes reliably on iOS Safari + desktop Chrome; VP8 often shows black on iOS. */
+  function getVideoCodec() {
+    return "h264";
+  }
+
   async function playVideoElement(el) {
     if (!el) return;
     el.muted = true;
@@ -167,6 +172,12 @@
       track.attach(videoEl);
     } catch (e) {
       console.warn("[JustUS] track.attach failed:", e);
+    }
+    const mediaTrack = track.mediaStreamTrack;
+    if (mediaTrack) {
+      try {
+        videoEl.srcObject = new MediaStream([mediaTrack]);
+      } catch (e) {}
     }
     playVideoElement(videoEl);
   }

@@ -31,6 +31,16 @@ function updateBadge() {
   }
 }
 
+function isStreamingTabUrl(url: string): boolean {
+  return (
+    url.includes("netflix.com") ||
+    url.includes("primevideo.com") ||
+    url.includes("amazon.") ||
+    url.includes("youtube.com") ||
+    url.includes("youtu.be")
+  );
+}
+
 // Runtime message listener
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
   if (message.type === "GET_STATUS") {
@@ -67,24 +77,33 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
       roomId: message.payload.roomId,
       userName: message.payload.userName || "User",
       isHost: Boolean(message.payload.isHost),
+      service: message.payload.service || currentSession.service || "generic",
+      videoUrl: message.payload.videoUrl || currentSession.videoUrl,
       status: "connecting",
       createdAt: Date.now(),
     };
     chrome.storage.local.set({ justus_session: currentSession });
     updateBadge();
 
-    // Broadcast to active tab safely
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]?.id) {
-        chrome.tabs.sendMessage(tabs[0].id, {
+      const tab = tabs[0];
+      if (!tab?.id || !tab.url) return;
+
+      // Guest on a non-streaming tab: popup navigates to the host video; content script boots from #tp=
+      if (!message.payload.isHost && !isStreamingTabUrl(tab.url)) return;
+
+      chrome.tabs.sendMessage(
+        tab.id,
+        {
           type: "START_PARTY",
           session: currentSession,
-        }, () => {
+        },
+        () => {
           if (chrome.runtime.lastError) {
-            // Tab will bootstrap itself on load
+            // Content script will bootstrap from hash or storage after navigation
           }
-        });
-      }
+        }
+      );
     });
 
     sendResponse({ success: true, session: currentSession });

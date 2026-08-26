@@ -157,9 +157,12 @@ export const TELEPARTY_SIDEBAR_CSS = `* { box-sizing: border-box; margin: 0; pad
   }
 
   .tp-remote-video {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    z-index: 0;
   }
 
   .tp-waiting-overlay {
