@@ -165,8 +165,7 @@
             remoteVideoTrack = track;
             const remoteVideo = shadow.getElementById("ju-remote-video");
             if (remoteVideo) {
-              remoteVideo.muted = true;
-              attachVideoTrack(track, remoteVideo, false);
+              attachVideoTrack(track, remoteVideo);
               if (waitingOverlay) waitingOverlay.classList.add("hidden");
             }
           }
@@ -258,7 +257,7 @@
             if (pub.track && pub.isSubscribed) {
               remoteVideoTrack = pub.track;
               const remoteVideo = shadow.getElementById("ju-remote-video");
-              if (remoteVideo) attachVideoTrack(pub.track, remoteVideo, false);
+              if (remoteVideo) attachVideoTrack(pub.track, remoteVideo);
               const waitingOverlay = shadow.getElementById("ju-video-waiting");
               if (waitingOverlay) waitingOverlay.classList.add("hidden");
             }
@@ -377,11 +376,8 @@
           if (localVideoEl) localVideoEl.classList.add("hidden");
           await localVideoTrack.mute();
         } else {
-          if (localVideoEl) {
-            localVideoEl.classList.remove("hidden");
-            attachLocalPreview(localVideoTrack, localVideoEl);
-          }
           await localVideoTrack.unmute();
+          if (localVideoEl) localVideoEl.classList.remove("hidden");
         }
       } catch (e) {}
     } else if (isCamEnabled && livekitRoom) {

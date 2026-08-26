@@ -11,7 +11,7 @@
 // (the SYNC object). Change both together.
 
 (function () {
-  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-restore-1";
+  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-v3";
   if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {
     if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === "function") {
       window.__JUSTUS_ENSURE_MOUNTED__();
@@ -148,44 +148,49 @@
     return { width: 480, height: 360, frameRate: 24 };
   }
 
-  async function playVideoElement(el) {
+  function prepareCallVideoEl(el, { muted }) {
     if (!el) return;
-    el.muted = true;
-    el.setAttribute("playsinline", "true");
-    el.setAttribute("webkit-playsinline", "true");
-    try {
-      await el.play();
-    } catch (e) {
-      setTimeout(() => {
-        try {
-          el.play().catch(() => {});
-        } catch (err) {}
-      }, 150);
-    }
+    el.muted = !!muted;
+    el.defaultMuted = !!muted;
+    el.playsInline = true;
+    el.controls = false;
+    el.disablePictureInPicture = true;
+    el.setAttribute("playsinline", "");
+    el.setAttribute("webkit-playsinline", "");
+    el.setAttribute("x-webkit-airplay", "deny");
+    el.removeAttribute("controls");
   }
 
-  function attachVideoTrack(track, videoEl, isLocalPreview) {
+  // LiveKit track.attach() already calls play(). A second play() aborts the first
+  // on iOS WKWebView → one-frame flash, then black + native pause overlay.
+  function attachVideoTrack(track, videoEl) {
     if (!track || !videoEl) return;
+    prepareCallVideoEl(videoEl, { muted: true });
     try {
       track.attach(videoEl);
     } catch (e) {
       console.warn("[JustUS] track.attach failed:", e);
     }
-    playVideoElement(videoEl);
   }
 
   function attachLocalPreview(track, videoEl) {
     if (!track || !videoEl) return;
-    videoEl.muted = true;
-    videoEl.setAttribute("playsinline", "true");
-    videoEl.setAttribute("webkit-playsinline", "true");
-    try {
-      track.attach(videoEl);
-    } catch (e) {
-      console.warn("[JustUS] local preview attach failed:", e);
-    }
+    const mediaTrack = track.mediaStreamTrack;
+    if (!mediaTrack) return;
+
+    prepareCallVideoEl(videoEl, { muted: true });
     videoEl.classList.remove("hidden");
-    videoEl.play().catch(() => {});
+
+    const current =
+      videoEl.srcObject instanceof MediaStream ? videoEl.srcObject.getVideoTracks()[0] : null;
+    if (current === mediaTrack && !videoEl.paused) return;
+
+    if (current !== mediaTrack) {
+      videoEl.srcObject = new MediaStream([mediaTrack]);
+    }
+    if (videoEl.paused) {
+      videoEl.play().catch(() => {});
+    }
   }
   // Detect Video Player (YouTube, Netflix API, Prime, or HTML5 video)
   function findVideoElement() {
@@ -609,6 +614,30 @@
       justify-content: center;
     }
 
+    .remote-video-feed,
+    .local-video-pip {
+      -webkit-appearance: none !important;
+    }
+    .remote-video-feed::-webkit-media-controls,
+    .local-video-pip::-webkit-media-controls,
+    .remote-video-feed::-webkit-media-controls-enclosure,
+    .local-video-pip::-webkit-media-controls-enclosure,
+    .remote-video-feed::-webkit-media-controls-panel,
+    .local-video-pip::-webkit-media-controls-panel,
+    .remote-video-feed::-webkit-media-controls-overlay-play-button,
+    .local-video-pip::-webkit-media-controls-overlay-play-button,
+    .remote-video-feed::-webkit-media-controls-start-playback-button,
+    .local-video-pip::-webkit-media-controls-start-playback-button,
+    .remote-video-feed::-webkit-media-controls-play-button,
+    .local-video-pip::-webkit-media-controls-play-button {
+      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      -webkit-appearance: none !important;
+    }
+
     .remote-video-feed {
       position: absolute !important;
       inset: 0 !important;
@@ -633,17 +662,15 @@
       border-radius: 10px !important;
       border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
       object-fit: cover !important;
-      transform: scaleX(-1) !important;
+      transform: none !important;
       background: #181A26 !important;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.85) !important;
       z-index: 3 !important;
       pointer-events: none !important;
     }
     .local-video-pip.hidden {
-      display: none !important;
-    }
-    :host(.ju-is-ios) .local-video-pip {
-      transform: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
     }
 
     .video-waiting-overlay {
@@ -1041,8 +1068,8 @@
         <div class="waiting-pulse"></div>
         <span id="ju-waiting-text">Connecting video call...</span>
       </div>
-      <video class="remote-video-feed" id="ju-remote-video" autoplay playsinline webkit-playsinline x-webkit-airplay="deny" disablepictureinpicture controlslist="nodownload nofullscreen noremoteplayback"></video>
-      <video class="local-video-pip hidden" id="ju-local-video" autoplay playsinline webkit-playsinline muted x-webkit-airplay="deny" disablepictureinpicture controlslist="nodownload nofullscreen noremoteplayback"></video>
+      <video class="remote-video-feed" id="ju-remote-video" autoplay muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback x-webkit-airplay="deny" controlslist="nodownload nofullscreen noremoteplayback noplaybackrate novolume"></video>
+      <video class="local-video-pip hidden" id="ju-local-video" autoplay muted playsinline webkit-playsinline disablePictureInPicture disableRemotePlayback x-webkit-airplay="deny" controlslist="nodownload nofullscreen noremoteplayback noplaybackrate novolume"></video>
 
       <!-- Tap-to-Reveal Controls Overlay -->
       <div class="video-controls-overlay hidden" id="ju-video-controls">
@@ -1547,8 +1574,7 @@
             remoteVideoTrack = track;
             const remoteVideo = shadow.getElementById("ju-remote-video");
             if (remoteVideo) {
-              remoteVideo.muted = true;
-              attachVideoTrack(track, remoteVideo, false);
+              attachVideoTrack(track, remoteVideo);
               if (waitingOverlay) waitingOverlay.classList.add("hidden");
             }
           }
@@ -1640,7 +1666,7 @@
             if (pub.track && pub.isSubscribed) {
               remoteVideoTrack = pub.track;
               const remoteVideo = shadow.getElementById("ju-remote-video");
-              if (remoteVideo) attachVideoTrack(pub.track, remoteVideo, false);
+              if (remoteVideo) attachVideoTrack(pub.track, remoteVideo);
               const waitingOverlay = shadow.getElementById("ju-video-waiting");
               if (waitingOverlay) waitingOverlay.classList.add("hidden");
             }
@@ -1759,11 +1785,8 @@
           if (localVideoEl) localVideoEl.classList.add("hidden");
           await localVideoTrack.mute();
         } else {
-          if (localVideoEl) {
-            localVideoEl.classList.remove("hidden");
-            attachLocalPreview(localVideoTrack, localVideoEl);
-          }
           await localVideoTrack.unmute();
+          if (localVideoEl) localVideoEl.classList.remove("hidden");
         }
       } catch (e) {}
     } else if (isCamEnabled && livekitRoom) {

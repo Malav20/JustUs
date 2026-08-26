@@ -1,4 +1,4 @@
-import { Room, RoomEvent, Track, RemoteTrack, RemoteParticipant, LocalVideoTrack, LocalAudioTrack, createLocalAudioTrack, ConnectionState, setLogLevel, LogLevel } from "livekit-client";
+import { Room, RoomEvent, Track, RemoteTrack, RemoteParticipant, LocalVideoTrack, LocalAudioTrack, ConnectionState, setLogLevel, LogLevel } from "livekit-client";
 import { CONFIG } from "../../shared/constants";
 import { ChatMessage } from "../../shared/types";
 import { TELEPARTY_SIDEBAR_CSS } from "./teleparty-sidebar-styles";
@@ -262,7 +262,12 @@ export class TelepartySidebarUI {
 
       room.on(RoomEvent.LocalTrackPublished, (publication) => {
         const track = publication.track;
-        if (!track || track.kind !== Track.Kind.Video) return;
+        if (!track) return;
+        if (track.kind === Track.Kind.Audio) {
+          this.localAudioTrack = track as LocalAudioTrack;
+          return;
+        }
+        if (track.kind !== Track.Kind.Video) return;
         this.localVideoTrack = track as LocalVideoTrack;
         if (this.localVideoEl) {
           this.attachVideoToElement(track as LocalVideoTrack, this.localVideoEl, true);
@@ -335,6 +340,8 @@ export class TelepartySidebarUI {
         if (this.micEnabled) {
           try {
             await room.localParticipant.setMicrophoneEnabled(true);
+            const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+            if (micPub?.track) this.localAudioTrack = micPub.track as LocalAudioTrack;
           } catch (e: any) {
             console.log("[JustUS] Audio track standby:", e.message);
           }
@@ -434,6 +441,40 @@ export class TelepartySidebarUI {
     setTimeout(() => floater.remove(), 2500);
   }
 
+  private async applyMicEnabled(enabled: boolean) {
+    this.micEnabled = enabled;
+    const micBtn = this.shadow?.getElementById("btn-mic");
+    micBtn?.classList.toggle("off", !enabled);
+
+    const room = this.livekitRoom;
+    if (!room || room.state !== ConnectionState.Connected) return;
+
+    try {
+      await room.localParticipant.setMicrophoneEnabled(enabled);
+    } catch (e) {}
+
+    const pub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+    if (pub?.track) this.localAudioTrack = pub.track as LocalAudioTrack;
+
+    const applyTrackMute = (track: LocalAudioTrack | undefined) => {
+      if (!track) return;
+      try {
+        if (enabled) {
+          track.unmute();
+          if (track.mediaStreamTrack) track.mediaStreamTrack.enabled = true;
+        } else {
+          track.mute();
+          if (track.mediaStreamTrack) track.mediaStreamTrack.enabled = false;
+        }
+      } catch (e) {}
+    };
+
+    applyTrackMute(this.localAudioTrack || undefined);
+    room.localParticipant.audioTrackPublications.forEach((audioPub) => {
+      applyTrackMute(audioPub.track as LocalAudioTrack | undefined);
+    });
+  }
+
   private render() {
     if (!this.shadow) return;
 
@@ -512,47 +553,8 @@ export class TelepartySidebarUI {
     leaveBtn?.addEventListener("click", leave);
     if (leaveBtn) bindInstantTap(leaveBtn, leave, { stopPropagation: true });
 
-    // AV controls with total hardware release
     micBtn?.addEventListener("click", async () => {
-      this.micEnabled = !this.micEnabled;
-      micBtn.classList.toggle("off", !this.micEnabled);
-
-      if (!this.micEnabled) {
-        // Complete hardware release so browser stops showing "Microphone: Using now"
-        if (this.localAudioTrack) {
-          const trackToStop = this.localAudioTrack;
-          this.localAudioTrack = null;
-          try {
-            if (this.livekitRoom && this.livekitRoom.state === ConnectionState.Connected) {
-              const pub = this.livekitRoom.localParticipant.getTrackPublication(trackToStop.source);
-              if (pub) {
-                await this.livekitRoom.localParticipant.unpublishTrack(trackToStop, true).catch(() => {});
-              }
-            }
-            trackToStop.stop();
-            if (trackToStop.mediaStreamTrack) {
-              trackToStop.mediaStreamTrack.enabled = false;
-              trackToStop.mediaStreamTrack.stop();
-            }
-          } catch (e) {}
-        }
-      } else {
-        // Re-acquire hardware microphone
-        if (this.livekitRoom && this.livekitRoom.state === ConnectionState.Connected) {
-          try {
-            const newAudio = await createLocalAudioTrack();
-            if (this.micEnabled) {
-              this.localAudioTrack = newAudio;
-              await this.livekitRoom.localParticipant.publishTrack(newAudio);
-            } else {
-              newAudio.stop();
-              newAudio.mediaStreamTrack?.stop();
-            }
-          } catch (e: any) {
-            console.log("[JustUS] Mic restart note:", e.message);
-          }
-        }
-      }
+      await this.applyMicEnabled(!this.micEnabled);
     });
 
     camBtn?.addEventListener("click", async () => {
@@ -596,16 +598,10 @@ export class TelepartySidebarUI {
       const micPercent = Number(e.target.value);
       this.micVolume = micPercent / 100;
       if (valMicVol) valMicVol.textContent = `${micPercent}%`;
-      if (this.livekitRoom) {
-        if (micPercent === 0 && this.micEnabled) {
-          this.micEnabled = false;
-          await this.livekitRoom.localParticipant.setMicrophoneEnabled(false);
-          micBtn?.classList.add("off");
-        } else if (micPercent > 0 && !this.micEnabled) {
-          this.micEnabled = true;
-          await this.livekitRoom.localParticipant.setMicrophoneEnabled(true);
-          micBtn?.classList.remove("off");
-        }
+      if (micPercent === 0 && this.micEnabled) {
+        await this.applyMicEnabled(false);
+      } else if (micPercent > 0 && !this.micEnabled) {
+        await this.applyMicEnabled(true);
       }
     });
 

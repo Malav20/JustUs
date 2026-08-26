@@ -121,6 +121,30 @@
       justify-content: center;
     }
 
+    .remote-video-feed,
+    .local-video-pip {
+      -webkit-appearance: none !important;
+    }
+    .remote-video-feed::-webkit-media-controls,
+    .local-video-pip::-webkit-media-controls,
+    .remote-video-feed::-webkit-media-controls-enclosure,
+    .local-video-pip::-webkit-media-controls-enclosure,
+    .remote-video-feed::-webkit-media-controls-panel,
+    .local-video-pip::-webkit-media-controls-panel,
+    .remote-video-feed::-webkit-media-controls-overlay-play-button,
+    .local-video-pip::-webkit-media-controls-overlay-play-button,
+    .remote-video-feed::-webkit-media-controls-start-playback-button,
+    .local-video-pip::-webkit-media-controls-start-playback-button,
+    .remote-video-feed::-webkit-media-controls-play-button,
+    .local-video-pip::-webkit-media-controls-play-button {
+      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      -webkit-appearance: none !important;
+    }
+
     .remote-video-feed {
       position: absolute !important;
       inset: 0 !important;
@@ -145,17 +169,15 @@
       border-radius: 10px !important;
       border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
       object-fit: cover !important;
-      transform: scaleX(-1) !important;
+      transform: none !important;
       background: #181A26 !important;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.85) !important;
       z-index: 3 !important;
       pointer-events: none !important;
     }
     .local-video-pip.hidden {
-      display: none !important;
-    }
-    :host(.ju-is-ios) .local-video-pip {
-      transform: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
     }
 
     .video-waiting-overlay {

@@ -7,7 +7,7 @@
 // (the SYNC object). Change both together.
 
 (function () {
-  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-restore-1";
+  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-v3";
   if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {
     if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === "function") {
       window.__JUSTUS_ENSURE_MOUNTED__();
@@ -144,42 +144,47 @@
     return { width: 480, height: 360, frameRate: 24 };
   }
 
-  async function playVideoElement(el) {
+  function prepareCallVideoEl(el, { muted }) {
     if (!el) return;
-    el.muted = true;
-    el.setAttribute("playsinline", "true");
-    el.setAttribute("webkit-playsinline", "true");
-    try {
-      await el.play();
-    } catch (e) {
-      setTimeout(() => {
-        try {
-          el.play().catch(() => {});
-        } catch (err) {}
-      }, 150);
-    }
+    el.muted = !!muted;
+    el.defaultMuted = !!muted;
+    el.playsInline = true;
+    el.controls = false;
+    el.disablePictureInPicture = true;
+    el.setAttribute("playsinline", "");
+    el.setAttribute("webkit-playsinline", "");
+    el.setAttribute("x-webkit-airplay", "deny");
+    el.removeAttribute("controls");
   }
 
-  function attachVideoTrack(track, videoEl, isLocalPreview) {
+  // LiveKit track.attach() already calls play(). A second play() aborts the first
+  // on iOS WKWebView → one-frame flash, then black + native pause overlay.
+  function attachVideoTrack(track, videoEl) {
     if (!track || !videoEl) return;
+    prepareCallVideoEl(videoEl, { muted: true });
     try {
       track.attach(videoEl);
     } catch (e) {
       console.warn("[JustUS] track.attach failed:", e);
     }
-    playVideoElement(videoEl);
   }
 
   function attachLocalPreview(track, videoEl) {
     if (!track || !videoEl) return;
-    videoEl.muted = true;
-    videoEl.setAttribute("playsinline", "true");
-    videoEl.setAttribute("webkit-playsinline", "true");
-    try {
-      track.attach(videoEl);
-    } catch (e) {
-      console.warn("[JustUS] local preview attach failed:", e);
-    }
+    const mediaTrack = track.mediaStreamTrack;
+    if (!mediaTrack) return;
+
+    prepareCallVideoEl(videoEl, { muted: true });
     videoEl.classList.remove("hidden");
-    videoEl.play().catch(() => {});
+
+    const current =
+      videoEl.srcObject instanceof MediaStream ? videoEl.srcObject.getVideoTracks()[0] : null;
+    if (current === mediaTrack && !videoEl.paused) return;
+
+    if (current !== mediaTrack) {
+      videoEl.srcObject = new MediaStream([mediaTrack]);
+    }
+    if (videoEl.paused) {
+      videoEl.play().catch(() => {});
+    }
   }
