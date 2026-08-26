@@ -43,6 +43,27 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
         setupFloatingHubButton()
     }
 
+    // Auto-grant camera/mic when LiveKit requests getUserMedia inside WKWebView (iOS 15+)
+    override func webView(
+        _ webView: WKWebView,
+        requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+        initiatedByFrame frame: WKFrameInfo,
+        type: WKMediaCaptureType,
+        decisionHandler: @escaping (WKPermissionDecision) -> Void
+    ) {
+        decisionHandler(.grant)
+    }
+
+    @available(iOS 17.0, *)
+    override func webView(
+        _ webView: WKWebView,
+        decideMediaCapturePermissionsFor origin: WKSecurityOrigin,
+        initiatedBy frame: WKFrameInfo,
+        type: WKMediaCaptureType
+    ) async -> WKPermissionDecision {
+        return .grant
+    }
+
     private func configureAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()

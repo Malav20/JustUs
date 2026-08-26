@@ -17,7 +17,7 @@
       return;
     }
     const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/livekit-client@2.6.0/dist/livekit-client.umd.min.js";
+    script.src = "https://cdn.jsdelivr.net/npm/livekit-client@2.9.2/dist/livekit-client.umd.min.js";
     script.onload = () => {
       if (window.LivekitClient) callback();
     };
@@ -102,14 +102,15 @@
         const { token, wsUrl } = tokenResult;
 
         const room = new window.LivekitClient.Room({
-          adaptiveStream: false,
+          adaptiveStream: IS_TOUCH_DEVICE,
           dynacast: false,
           publishDefaults: {
             simulcast: false,
             videoCodec: "vp8",
+            degradationPreference: "maintain-framerate",
           },
           videoCaptureDefaults: {
-            resolution: window.LivekitClient.VideoPresets?.h216?.resolution || { width: 384, height: 216, frameRate: 15 },
+            resolution: getVideoCapturePreset(),
           },
         });
         livekitRoom = room;
@@ -121,10 +122,7 @@
             const remoteVideo = shadow.getElementById("ju-remote-video");
             if (remoteVideo) {
               remoteVideo.muted = true;
-              remoteVideo.setAttribute("playsinline", "true");
-              remoteVideo.setAttribute("webkit-playsinline", "true");
-              track.attach(remoteVideo);
-              remoteVideo.play().catch(() => {});
+              attachVideoTrack(track, remoteVideo);
               if (waitingOverlay) waitingOverlay.classList.add("hidden");
             }
           }
@@ -176,26 +174,24 @@
           console.warn("[JustUS] Microphone setup notice:", e);
         }
 
-        // 2. Front/User Camera track (Crisp 480x360 @ 24fps)
+        // 2. Front/User Camera track — lighter preset on iPad for responsiveness
         try {
+          const capturePreset = getVideoCapturePreset();
           localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
             facingMode: currentFacingMode || "user",
-            resolution: { width: 480, height: 360, frameRate: 24 },
+            resolution: capturePreset,
           });
           const localVideoEl = shadow.getElementById("ju-local-video");
           if (localVideoEl && localVideoTrack) {
-            localVideoEl.muted = true;
-            localVideoEl.setAttribute("playsinline", "true");
-            localVideoEl.setAttribute("webkit-playsinline", "true");
-            localVideoTrack.attach(localVideoEl);
+            attachVideoTrack(localVideoTrack, localVideoEl);
             localVideoEl.classList.remove("hidden");
-            localVideoEl.play().catch(() => {});
           }
           if (localVideoTrack) {
             await room.localParticipant.publishTrack(localVideoTrack);
           }
         } catch (e) {
           console.warn("[JustUS] Camera setup notice:", e);
+          addEventLog("⚠️ Camera unavailable — check app permissions", "System");
         }
 
         if (waitingText) waitingText.textContent = "Waiting for friend to join call...";
@@ -290,15 +286,11 @@
       try {
         localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
           facingMode: currentFacingMode || "user",
-          resolution: { width: 480, height: 360, frameRate: 24 },
+          resolution: getVideoCapturePreset(),
         });
         if (localVideoEl && localVideoTrack) {
-          localVideoEl.muted = true;
-          localVideoEl.setAttribute("playsinline", "true");
-          localVideoEl.setAttribute("webkit-playsinline", "true");
-          localVideoTrack.attach(localVideoEl);
+          attachVideoTrack(localVideoTrack, localVideoEl);
           localVideoEl.classList.remove("hidden");
-          localVideoEl.play().catch(() => {});
         }
         if (localVideoTrack) {
           await livekitRoom.localParticipant.publishTrack(localVideoTrack);
@@ -323,15 +315,11 @@
       try {
         localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
           facingMode: currentFacingMode,
-          resolution: { width: 480, height: 360, frameRate: 24 },
+          resolution: getVideoCapturePreset(),
         });
         if (localVideoEl && localVideoTrack) {
-          localVideoEl.muted = true;
-          localVideoEl.setAttribute("playsinline", "true");
-          localVideoEl.setAttribute("webkit-playsinline", "true");
-          localVideoTrack.attach(localVideoEl);
+          attachVideoTrack(localVideoTrack, localVideoEl);
           localVideoEl.classList.remove("hidden");
-          localVideoEl.play().catch(() => {});
         }
         if (localVideoTrack) {
           await livekitRoom.localParticipant.publishTrack(localVideoTrack);

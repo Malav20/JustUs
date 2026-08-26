@@ -96,9 +96,11 @@
       pointer-events: auto;
       user-select: none;
       -webkit-user-select: none;
-      touch-action: none;
+      touch-action: manipulation;
       transform: translate3d(0, 0, 0);
       will-change: transform;
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
       transition: box-shadow 0.2s ease;
     }
     .video-call-window.hidden {
@@ -221,11 +223,9 @@
       justify-content: center;
       gap: 8px;
       padding: 5px 8px;
-      background: rgba(12, 14, 24, 0.85);
+      background: rgba(12, 14, 24, 0.92);
       border: 1px solid rgba(255, 255, 255, 0.18);
       border-radius: 22px;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
       pointer-events: auto;
       z-index: 10;
     }

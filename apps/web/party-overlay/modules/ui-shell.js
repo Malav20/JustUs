@@ -128,37 +128,9 @@
     }
   }
 
-  // Use touchstart as primary trigger — it fires BEFORE YouTube's
-  // gesture detection can intercept/consume the touch chain.
-  // preventDefault() on touchstart cancels scroll AND synthetic click,
-  // guaranteeing exactly one toggle per tap.
-  let lastPartyTapTime = 0;
-  function onPartyPillTap(e) {
-    if (e) {
-      try { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); } catch (err) {}
-    }
-    const now = Date.now();
-    if (now - lastPartyTapTime < 400) return;
-    lastPartyTapTime = now;
-    toggleDrawer();
-  }
-
-  partyPill.addEventListener("touchstart", onPartyPillTap, { passive: false, capture: false });
-  partyPill.addEventListener("click", onPartyPillTap);
-
-  let lastVideoTapTime = 0;
-  function onVideoPillTap(e) {
-    if (e) {
-      try { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); } catch (err) {}
-    }
-    const now = Date.now();
-    if (now - lastVideoTapTime < 400) return;
-    lastVideoTapTime = now;
-    toggleVideoCallWindow();
-  }
-
-  videoPill.addEventListener("touchstart", onVideoPillTap, { passive: false, capture: false });
-  videoPill.addEventListener("click", onVideoPillTap);
+  // Badge taps — bindOverlayTap avoids touchstart + click double-toggle on iPad
+  bindOverlayTap(partyPill, () => toggleDrawer());
+  bindOverlayTap(videoPill, () => toggleVideoCallWindow());
 
   // Prevent touches inside drawer from reaching YouTube's gesture handlers
   drawer.addEventListener("touchstart", function(e) { e.stopPropagation(); }, { passive: false });
@@ -203,29 +175,37 @@
     }, 5000);
   }
 
-  function onWindowPointerDown(e) {
-    if (
-      e.target.closest("button") ||
-      e.target.closest(".call-ctrl-btn") ||
-      e.target.closest(".overlay-close-btn") ||
-      e.target.closest(".video-resize-handle") ||
-      e.target.closest(".video-control-bar")
-    ) {
-      return;
-    }
+  function isInteractionTargetBlocked(target) {
+    return (
+      target.closest("button") ||
+      target.closest(".call-ctrl-btn") ||
+      target.closest(".overlay-close-btn") ||
+      target.closest(".video-resize-handle") ||
+      target.closest(".video-control-bar")
+    );
+  }
+
+  function onWindowInteractionStart(e) {
+    if (isInteractionTargetBlocked(e.target)) return;
+    const pt = getEventPoint(e);
     isDraggingWindow = true;
     hasMovedWindow = false;
-    dragWindowStartX = e.clientX;
-    dragWindowStartY = e.clientY;
+    dragWindowStartX = pt.clientX;
+    dragWindowStartY = pt.clientY;
     const rect = videoWindow.getBoundingClientRect();
     winStartLeft = rect.left;
     winStartTop = rect.top;
+    if (IS_TOUCH_DEVICE) {
+      try {
+        e.preventDefault();
+      } catch (err) {}
+    }
   }
 
   let isPointerMoveScheduled = false;
   let latestPointerEvent = null;
 
-  function onWindowPointerMove(e) {
+  function onWindowInteractionMove(e) {
     if (!isDraggingWindow) return;
     latestPointerEvent = e;
     if (isPointerMoveScheduled) return;
@@ -234,10 +214,11 @@
     requestAnimationFrame(() => {
       isPointerMoveScheduled = false;
       if (!isDraggingWindow || !latestPointerEvent) return;
-      const deltaX = latestPointerEvent.clientX - dragWindowStartX;
-      const deltaY = latestPointerEvent.clientY - dragWindowStartY;
+      const pt = getEventPoint(latestPointerEvent);
+      const deltaX = pt.clientX - dragWindowStartX;
+      const deltaY = pt.clientY - dragWindowStartY;
 
-      if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
+      if (Math.abs(deltaX) > DRAG_THRESHOLD_PX || Math.abs(deltaY) > DRAG_THRESHOLD_PX) {
         hasMovedWindow = true;
       }
 
@@ -252,19 +233,37 @@
         videoWindow.style.right = "auto";
       }
     });
+
+    if (IS_TOUCH_DEVICE && hasMovedWindow) {
+      try {
+        e.preventDefault();
+      } catch (err) {}
+    }
   }
 
-  function onWindowPointerUp(e) {
+  function onWindowInteractionEnd(e) {
     if (!isDraggingWindow) return;
     isDraggingWindow = false;
     if (!hasMovedWindow) {
       toggleControlsOverlay();
     }
+    if (IS_TOUCH_DEVICE) {
+      try {
+        e.preventDefault();
+      } catch (err) {}
+    }
   }
 
-  videoCanvas.addEventListener("pointerdown", onWindowPointerDown);
-  window.addEventListener("pointermove", onWindowPointerMove);
-  window.addEventListener("pointerup", onWindowPointerUp);
+  if (IS_TOUCH_DEVICE) {
+    videoCanvas.addEventListener("touchstart", onWindowInteractionStart, { passive: false, capture: true });
+    window.addEventListener("touchmove", onWindowInteractionMove, { passive: false });
+    window.addEventListener("touchend", onWindowInteractionEnd, { passive: false });
+    window.addEventListener("touchcancel", onWindowInteractionEnd, { passive: false });
+  } else {
+    videoCanvas.addEventListener("pointerdown", onWindowInteractionStart);
+    window.addEventListener("pointermove", onWindowInteractionMove);
+    window.addEventListener("pointerup", onWindowInteractionEnd);
+  }
 
   // Prevent taps inside controls overlay from closing it
   videoControls.addEventListener("pointerdown", (e) => {
@@ -333,27 +332,10 @@
   function setupControlButton(id, callback) {
     const btn = shadow.getElementById(id);
     if (!btn) return;
-    let lastHandled = 0;
-    const handleAction = (e) => {
-      if (e) {
-        try {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-        } catch (err) {}
-      }
-      const now = Date.now();
-      if (now - lastHandled < 300) return;
-      lastHandled = now;
+    bindOverlayTap(btn, () => {
       resetControlsHideTimer();
       callback();
-    };
-    btn.addEventListener("touchstart", handleAction, { passive: false });
-    btn.addEventListener("pointerdown", (e) => {
-      e.stopPropagation();
-      e.stopImmediatePropagation();
     });
-    btn.addEventListener("click", handleAction);
   }
 
   // Video Window Control Buttons

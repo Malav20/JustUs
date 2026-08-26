@@ -156,6 +156,12 @@ export class TelepartySidebarUI {
         if (track.kind === Track.Kind.Video && this.remoteVideoEl) {
           if (this.videoCallBoxEl) this.videoCallBoxEl.classList.remove("hidden");
           track.attach(this.remoteVideoEl);
+          this.remoteVideoEl.muted = true;
+          this.remoteVideoEl.setAttribute("playsinline", "true");
+          this.remoteVideoEl.setAttribute("webkit-playsinline", "true");
+          this.remoteVideoEl.play().catch(() => {
+            setTimeout(() => this.remoteVideoEl?.play().catch(() => {}), 150);
+          });
           const waitingOverlay = this.shadow?.getElementById("waiting-overlay");
           if (waitingOverlay) waitingOverlay.classList.add("hidden");
         }
@@ -190,7 +196,9 @@ export class TelepartySidebarUI {
         if (this.cameraEnabled) {
           try {
             // Publish local camera track only if user still has camera enabled
-            const localVideo = await createLocalVideoTrack({ resolution: { width: 320, height: 240 } });
+            const localVideo = await createLocalVideoTrack({
+              resolution: { width: 320, height: 240, frameRate: 15 },
+            });
             if (!this.cameraEnabled) {
               localVideo.stop();
               localVideo.mediaStreamTrack?.stop();

@@ -98,3 +98,72 @@
     };
     (document.head || document.documentElement).appendChild(script);
   }
+
+  // ── Touch / mobile helpers (iPad WKWebView + YouTube gesture competition) ──
+  const IS_IOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const IS_TOUCH_DEVICE = IS_IOS || navigator.maxTouchPoints > 0;
+  const DRAG_THRESHOLD_PX = IS_TOUCH_DEVICE ? 14 : 6;
+
+  function getEventPoint(e) {
+    if (e.touches && e.touches.length) return e.touches[0];
+    if (e.changedTouches && e.changedTouches.length) return e.changedTouches[0];
+    return e;
+  }
+
+  /** One handler per tap — touchstart on iOS avoids double-fire with synthetic click. */
+  function bindOverlayTap(el, handler) {
+    if (!el || !handler) return;
+    let lastTap = 0;
+    const run = (e) => {
+      if (e) {
+        try {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+        } catch (err) {}
+      }
+      const now = Date.now();
+      if (now - lastTap < 400) return;
+      lastTap = now;
+      handler(e);
+    };
+    if (IS_TOUCH_DEVICE) {
+      el.addEventListener("touchstart", run, { passive: false, capture: true });
+    } else {
+      el.addEventListener("click", run);
+    }
+  }
+
+  function getVideoCapturePreset() {
+    return IS_TOUCH_DEVICE
+      ? { width: 320, height: 240, frameRate: 15 }
+      : { width: 480, height: 360, frameRate: 24 };
+  }
+
+  async function playVideoElement(el) {
+    if (!el) return;
+    el.muted = true;
+    el.setAttribute("playsinline", "true");
+    el.setAttribute("webkit-playsinline", "true");
+    try {
+      await el.play();
+    } catch (e) {
+      setTimeout(() => {
+        try {
+          el.play().catch(() => {});
+        } catch (err) {}
+      }, 150);
+    }
+  }
+
+  function attachVideoTrack(track, videoEl) {
+    if (!track || !videoEl) return;
+    try {
+      track.attach(videoEl);
+    } catch (e) {
+      console.warn("[JustUS] track.attach failed:", e);
+    }
+    playVideoElement(videoEl);
+  }

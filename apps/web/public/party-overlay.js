@@ -102,6 +102,75 @@
     };
     (document.head || document.documentElement).appendChild(script);
   }
+
+  // ── Touch / mobile helpers (iPad WKWebView + YouTube gesture competition) ──
+  const IS_IOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const IS_TOUCH_DEVICE = IS_IOS || navigator.maxTouchPoints > 0;
+  const DRAG_THRESHOLD_PX = IS_TOUCH_DEVICE ? 14 : 6;
+
+  function getEventPoint(e) {
+    if (e.touches && e.touches.length) return e.touches[0];
+    if (e.changedTouches && e.changedTouches.length) return e.changedTouches[0];
+    return e;
+  }
+
+  /** One handler per tap — touchstart on iOS avoids double-fire with synthetic click. */
+  function bindOverlayTap(el, handler) {
+    if (!el || !handler) return;
+    let lastTap = 0;
+    const run = (e) => {
+      if (e) {
+        try {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+        } catch (err) {}
+      }
+      const now = Date.now();
+      if (now - lastTap < 400) return;
+      lastTap = now;
+      handler(e);
+    };
+    if (IS_TOUCH_DEVICE) {
+      el.addEventListener("touchstart", run, { passive: false, capture: true });
+    } else {
+      el.addEventListener("click", run);
+    }
+  }
+
+  function getVideoCapturePreset() {
+    return IS_TOUCH_DEVICE
+      ? { width: 320, height: 240, frameRate: 15 }
+      : { width: 480, height: 360, frameRate: 24 };
+  }
+
+  async function playVideoElement(el) {
+    if (!el) return;
+    el.muted = true;
+    el.setAttribute("playsinline", "true");
+    el.setAttribute("webkit-playsinline", "true");
+    try {
+      await el.play();
+    } catch (e) {
+      setTimeout(() => {
+        try {
+          el.play().catch(() => {});
+        } catch (err) {}
+      }, 150);
+    }
+  }
+
+  function attachVideoTrack(track, videoEl) {
+    if (!track || !videoEl) return;
+    try {
+      track.attach(videoEl);
+    } catch (e) {
+      console.warn("[JustUS] track.attach failed:", e);
+    }
+    playVideoElement(videoEl);
+  }
   // Detect Video Player (YouTube, Netflix API, Prime, or HTML5 video)
   function findVideoElement() {
     return document.querySelector(".html5-main-video, .watch-video video, .sizing-wrapper video, .webPlayerUIContainer video, .rendererContainer video, video");
@@ -499,9 +568,11 @@
       pointer-events: auto;
       user-select: none;
       -webkit-user-select: none;
-      touch-action: none;
+      touch-action: manipulation;
       transform: translate3d(0, 0, 0);
       will-change: transform;
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
       transition: box-shadow 0.2s ease;
     }
     .video-call-window.hidden {
@@ -624,11 +695,9 @@
       justify-content: center;
       gap: 8px;
       padding: 5px 8px;
-      background: rgba(12, 14, 24, 0.85);
+      background: rgba(12, 14, 24, 0.92);
       border: 1px solid rgba(255, 255, 255, 0.18);
       border-radius: 22px;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
       pointer-events: auto;
       z-index: 10;
     }
@@ -1050,37 +1119,9 @@
     }
   }
 
-  // Use touchstart as primary trigger — it fires BEFORE YouTube's
-  // gesture detection can intercept/consume the touch chain.
-  // preventDefault() on touchstart cancels scroll AND synthetic click,
-  // guaranteeing exactly one toggle per tap.
-  let lastPartyTapTime = 0;
-  function onPartyPillTap(e) {
-    if (e) {
-      try { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); } catch (err) {}
-    }
-    const now = Date.now();
-    if (now - lastPartyTapTime < 400) return;
-    lastPartyTapTime = now;
-    toggleDrawer();
-  }
-
-  partyPill.addEventListener("touchstart", onPartyPillTap, { passive: false, capture: false });
-  partyPill.addEventListener("click", onPartyPillTap);
-
-  let lastVideoTapTime = 0;
-  function onVideoPillTap(e) {
-    if (e) {
-      try { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); } catch (err) {}
-    }
-    const now = Date.now();
-    if (now - lastVideoTapTime < 400) return;
-    lastVideoTapTime = now;
-    toggleVideoCallWindow();
-  }
-
-  videoPill.addEventListener("touchstart", onVideoPillTap, { passive: false, capture: false });
-  videoPill.addEventListener("click", onVideoPillTap);
+  // Badge taps — bindOverlayTap avoids touchstart + click double-toggle on iPad
+  bindOverlayTap(partyPill, () => toggleDrawer());
+  bindOverlayTap(videoPill, () => toggleVideoCallWindow());
 
   // Prevent touches inside drawer from reaching YouTube's gesture handlers
   drawer.addEventListener("touchstart", function(e) { e.stopPropagation(); }, { passive: false });
@@ -1125,29 +1166,37 @@
     }, 5000);
   }
 
-  function onWindowPointerDown(e) {
-    if (
-      e.target.closest("button") ||
-      e.target.closest(".call-ctrl-btn") ||
-      e.target.closest(".overlay-close-btn") ||
-      e.target.closest(".video-resize-handle") ||
-      e.target.closest(".video-control-bar")
-    ) {
-      return;
-    }
+  function isInteractionTargetBlocked(target) {
+    return (
+      target.closest("button") ||
+      target.closest(".call-ctrl-btn") ||
+      target.closest(".overlay-close-btn") ||
+      target.closest(".video-resize-handle") ||
+      target.closest(".video-control-bar")
+    );
+  }
+
+  function onWindowInteractionStart(e) {
+    if (isInteractionTargetBlocked(e.target)) return;
+    const pt = getEventPoint(e);
     isDraggingWindow = true;
     hasMovedWindow = false;
-    dragWindowStartX = e.clientX;
-    dragWindowStartY = e.clientY;
+    dragWindowStartX = pt.clientX;
+    dragWindowStartY = pt.clientY;
     const rect = videoWindow.getBoundingClientRect();
     winStartLeft = rect.left;
     winStartTop = rect.top;
+    if (IS_TOUCH_DEVICE) {
+      try {
+        e.preventDefault();
+      } catch (err) {}
+    }
   }
 
   let isPointerMoveScheduled = false;
   let latestPointerEvent = null;
 
-  function onWindowPointerMove(e) {
+  function onWindowInteractionMove(e) {
     if (!isDraggingWindow) return;
     latestPointerEvent = e;
     if (isPointerMoveScheduled) return;
@@ -1156,10 +1205,11 @@
     requestAnimationFrame(() => {
       isPointerMoveScheduled = false;
       if (!isDraggingWindow || !latestPointerEvent) return;
-      const deltaX = latestPointerEvent.clientX - dragWindowStartX;
-      const deltaY = latestPointerEvent.clientY - dragWindowStartY;
+      const pt = getEventPoint(latestPointerEvent);
+      const deltaX = pt.clientX - dragWindowStartX;
+      const deltaY = pt.clientY - dragWindowStartY;
 
-      if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
+      if (Math.abs(deltaX) > DRAG_THRESHOLD_PX || Math.abs(deltaY) > DRAG_THRESHOLD_PX) {
         hasMovedWindow = true;
       }
 
@@ -1174,19 +1224,37 @@
         videoWindow.style.right = "auto";
       }
     });
+
+    if (IS_TOUCH_DEVICE && hasMovedWindow) {
+      try {
+        e.preventDefault();
+      } catch (err) {}
+    }
   }
 
-  function onWindowPointerUp(e) {
+  function onWindowInteractionEnd(e) {
     if (!isDraggingWindow) return;
     isDraggingWindow = false;
     if (!hasMovedWindow) {
       toggleControlsOverlay();
     }
+    if (IS_TOUCH_DEVICE) {
+      try {
+        e.preventDefault();
+      } catch (err) {}
+    }
   }
 
-  videoCanvas.addEventListener("pointerdown", onWindowPointerDown);
-  window.addEventListener("pointermove", onWindowPointerMove);
-  window.addEventListener("pointerup", onWindowPointerUp);
+  if (IS_TOUCH_DEVICE) {
+    videoCanvas.addEventListener("touchstart", onWindowInteractionStart, { passive: false, capture: true });
+    window.addEventListener("touchmove", onWindowInteractionMove, { passive: false });
+    window.addEventListener("touchend", onWindowInteractionEnd, { passive: false });
+    window.addEventListener("touchcancel", onWindowInteractionEnd, { passive: false });
+  } else {
+    videoCanvas.addEventListener("pointerdown", onWindowInteractionStart);
+    window.addEventListener("pointermove", onWindowInteractionMove);
+    window.addEventListener("pointerup", onWindowInteractionEnd);
+  }
 
   // Prevent taps inside controls overlay from closing it
   videoControls.addEventListener("pointerdown", (e) => {
@@ -1255,27 +1323,10 @@
   function setupControlButton(id, callback) {
     const btn = shadow.getElementById(id);
     if (!btn) return;
-    let lastHandled = 0;
-    const handleAction = (e) => {
-      if (e) {
-        try {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-        } catch (err) {}
-      }
-      const now = Date.now();
-      if (now - lastHandled < 300) return;
-      lastHandled = now;
+    bindOverlayTap(btn, () => {
       resetControlsHideTimer();
       callback();
-    };
-    btn.addEventListener("touchstart", handleAction, { passive: false });
-    btn.addEventListener("pointerdown", (e) => {
-      e.stopPropagation();
-      e.stopImmediatePropagation();
     });
-    btn.addEventListener("click", handleAction);
   }
 
   // Video Window Control Buttons
@@ -1323,7 +1374,7 @@
       return;
     }
     const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/livekit-client@2.6.0/dist/livekit-client.umd.min.js";
+    script.src = "https://cdn.jsdelivr.net/npm/livekit-client@2.9.2/dist/livekit-client.umd.min.js";
     script.onload = () => {
       if (window.LivekitClient) callback();
     };
@@ -1408,14 +1459,15 @@
         const { token, wsUrl } = tokenResult;
 
         const room = new window.LivekitClient.Room({
-          adaptiveStream: false,
+          adaptiveStream: IS_TOUCH_DEVICE,
           dynacast: false,
           publishDefaults: {
             simulcast: false,
             videoCodec: "vp8",
+            degradationPreference: "maintain-framerate",
           },
           videoCaptureDefaults: {
-            resolution: window.LivekitClient.VideoPresets?.h216?.resolution || { width: 384, height: 216, frameRate: 15 },
+            resolution: getVideoCapturePreset(),
           },
         });
         livekitRoom = room;
@@ -1427,10 +1479,7 @@
             const remoteVideo = shadow.getElementById("ju-remote-video");
             if (remoteVideo) {
               remoteVideo.muted = true;
-              remoteVideo.setAttribute("playsinline", "true");
-              remoteVideo.setAttribute("webkit-playsinline", "true");
-              track.attach(remoteVideo);
-              remoteVideo.play().catch(() => {});
+              attachVideoTrack(track, remoteVideo);
               if (waitingOverlay) waitingOverlay.classList.add("hidden");
             }
           }
@@ -1482,26 +1531,24 @@
           console.warn("[JustUS] Microphone setup notice:", e);
         }
 
-        // 2. Front/User Camera track (Crisp 480x360 @ 24fps)
+        // 2. Front/User Camera track — lighter preset on iPad for responsiveness
         try {
+          const capturePreset = getVideoCapturePreset();
           localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
             facingMode: currentFacingMode || "user",
-            resolution: { width: 480, height: 360, frameRate: 24 },
+            resolution: capturePreset,
           });
           const localVideoEl = shadow.getElementById("ju-local-video");
           if (localVideoEl && localVideoTrack) {
-            localVideoEl.muted = true;
-            localVideoEl.setAttribute("playsinline", "true");
-            localVideoEl.setAttribute("webkit-playsinline", "true");
-            localVideoTrack.attach(localVideoEl);
+            attachVideoTrack(localVideoTrack, localVideoEl);
             localVideoEl.classList.remove("hidden");
-            localVideoEl.play().catch(() => {});
           }
           if (localVideoTrack) {
             await room.localParticipant.publishTrack(localVideoTrack);
           }
         } catch (e) {
           console.warn("[JustUS] Camera setup notice:", e);
+          addEventLog("⚠️ Camera unavailable — check app permissions", "System");
         }
 
         if (waitingText) waitingText.textContent = "Waiting for friend to join call...";
@@ -1596,15 +1643,11 @@
       try {
         localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
           facingMode: currentFacingMode || "user",
-          resolution: { width: 480, height: 360, frameRate: 24 },
+          resolution: getVideoCapturePreset(),
         });
         if (localVideoEl && localVideoTrack) {
-          localVideoEl.muted = true;
-          localVideoEl.setAttribute("playsinline", "true");
-          localVideoEl.setAttribute("webkit-playsinline", "true");
-          localVideoTrack.attach(localVideoEl);
+          attachVideoTrack(localVideoTrack, localVideoEl);
           localVideoEl.classList.remove("hidden");
-          localVideoEl.play().catch(() => {});
         }
         if (localVideoTrack) {
           await livekitRoom.localParticipant.publishTrack(localVideoTrack);
@@ -1629,15 +1672,11 @@
       try {
         localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
           facingMode: currentFacingMode,
-          resolution: { width: 480, height: 360, frameRate: 24 },
+          resolution: getVideoCapturePreset(),
         });
         if (localVideoEl && localVideoTrack) {
-          localVideoEl.muted = true;
-          localVideoEl.setAttribute("playsinline", "true");
-          localVideoEl.setAttribute("webkit-playsinline", "true");
-          localVideoTrack.attach(localVideoEl);
+          attachVideoTrack(localVideoTrack, localVideoEl);
           localVideoEl.classList.remove("hidden");
-          localVideoEl.play().catch(() => {});
         }
         if (localVideoTrack) {
           await livekitRoom.localParticipant.publishTrack(localVideoTrack);
@@ -2522,15 +2561,25 @@ function computeHeartbeatCorrection(input) {
   window.addEventListener("yt-page-data-updated", checkUrlChange);
   window.addEventListener("popstate", checkUrlChange);
 
-  // Periodic video, URL, and wake lock watcher to catch dynamic DOM changes
+  // Periodic video, URL, and wake lock watcher — lighter on touch devices
+  let watcherBusy = false;
   setInterval(() => {
-    attachLocalPlayerListeners();
-    checkUrlChange();
-    const playing = isVideoPlaying();
-    if (playing !== isWakeLockRequested) {
-      setWakeLock(playing);
+    if (watcherBusy) return;
+    watcherBusy = true;
+    try {
+      const v = findVideoElement();
+      if (v && v !== boundVideoEl) {
+        attachLocalPlayerListeners();
+      }
+      checkUrlChange();
+      const playing = isVideoPlaying();
+      if (playing !== isWakeLockRequested) {
+        setWakeLock(playing);
+      }
+    } finally {
+      watcherBusy = false;
     }
-  }, 2000);
+  }, IS_TOUCH_DEVICE ? 4000 : 2000);
   // Check URL hash for auto-join (#justus=ju_xxx)
   function checkUrlHash() {
     const hash = window.location.hash;

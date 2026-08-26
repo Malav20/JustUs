@@ -35,12 +35,22 @@
   window.addEventListener("yt-page-data-updated", checkUrlChange);
   window.addEventListener("popstate", checkUrlChange);
 
-  // Periodic video, URL, and wake lock watcher to catch dynamic DOM changes
+  // Periodic video, URL, and wake lock watcher — lighter on touch devices
+  let watcherBusy = false;
   setInterval(() => {
-    attachLocalPlayerListeners();
-    checkUrlChange();
-    const playing = isVideoPlaying();
-    if (playing !== isWakeLockRequested) {
-      setWakeLock(playing);
+    if (watcherBusy) return;
+    watcherBusy = true;
+    try {
+      const v = findVideoElement();
+      if (v && v !== boundVideoEl) {
+        attachLocalPlayerListeners();
+      }
+      checkUrlChange();
+      const playing = isVideoPlaying();
+      if (playing !== isWakeLockRequested) {
+        setWakeLock(playing);
+      }
+    } finally {
+      watcherBusy = false;
     }
-  }, 2000);
+  }, IS_TOUCH_DEVICE ? 4000 : 2000);
