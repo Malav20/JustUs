@@ -141,14 +141,13 @@
   }
 
   function getVideoCapturePreset() {
-    return IS_TOUCH_DEVICE
-      ? { width: 320, height: 240, frameRate: 15 }
-      : { width: 480, height: 360, frameRate: 24 };
-  }
-
-  /** H.264 decodes reliably on iOS Safari + desktop Chrome; VP8 often shows black on iOS. */
-  function getVideoCodec() {
-    return "h264";
+    // Match pre-optimization preset that worked on iPad (336f86d regressed touch to 320x240).
+    if (IS_TOUCH_DEVICE) {
+      const lk = window.LivekitClient;
+      if (lk?.VideoPresets?.h216?.resolution) return lk.VideoPresets.h216.resolution;
+      return { width: 384, height: 216, frameRate: 15 };
+    }
+    return { width: 480, height: 360, frameRate: 24 };
   }
 
   async function playVideoElement(el) {
@@ -167,23 +166,36 @@
     }
   }
 
-  function attachVideoTrack(track, videoEl) {
+  function attachVideoTrack(track, videoEl, isLocalPreview) {
     if (!track || !videoEl) return;
-    try {
-      track.detach();
-    } catch (e) {}
+    // detach() before attach breaks local camera preview on iOS WKWebView (faea8ba regression).
+    if (!isLocalPreview) {
+      try {
+        track.detach();
+      } catch (e) {}
+    }
     try {
       track.attach(videoEl);
     } catch (e) {
       console.warn("[JustUS] track.attach failed:", e);
     }
-    const mediaTrack = track.mediaStreamTrack;
-    if (mediaTrack) {
-      try {
-        videoEl.srcObject = new MediaStream([mediaTrack]);
-      } catch (e) {}
-    }
     playVideoElement(videoEl);
+  }
+
+  function attachLocalPreview(track, videoEl) {
+    if (!track || !videoEl) return;
+    videoEl.muted = true;
+    videoEl.setAttribute("playsinline", "true");
+    videoEl.setAttribute("webkit-playsinline", "true");
+    try {
+      track.attach(videoEl);
+    } catch (e) {
+      console.warn("[JustUS] local preview attach failed:", e);
+    }
+    videoEl.classList.remove("hidden");
+    videoEl.play().catch(() => {
+      setTimeout(() => videoEl.play().catch(() => {}), 150);
+    });
   }
   // Detect Video Player (YouTube, Netflix API, Prime, or HTML5 video)
   function findVideoElement() {
@@ -488,6 +500,9 @@
   // ─────────────────────────────────────────────────────────────────
   const hostDiv = document.createElement("div");
   hostDiv.id = "justus-party-overlay-root";
+  if (typeof IS_IOS !== "undefined" && IS_IOS) {
+    hostDiv.classList.add("ju-is-ios");
+  }
   hostDiv.style.cssText =
     "position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 2147483647 !important; pointer-events: none !important; margin: 0 !important; padding: 0 !important; border: none !important;";
 
@@ -636,6 +651,9 @@
     }
     .local-video-pip.hidden {
       display: none !important;
+    }
+    :host(.ju-is-ios) .local-video-pip {
+      transform: none !important;
     }
 
     .video-waiting-overlay {
@@ -1391,7 +1409,7 @@
       return;
     }
     const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/livekit-client@2.9.2/dist/livekit-client.umd.min.js";
+    script.src = "https://cdn.jsdelivr.net/npm/livekit-client@2.6.0/dist/livekit-client.umd.min.js";
     script.onload = () => {
       if (window.LivekitClient) callback();
     };
@@ -1458,6 +1476,21 @@
     return null;
   }
 
+  async function publishLocalCamera(room) {
+    const capturePreset = getVideoCapturePreset();
+    localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
+      facingMode: currentFacingMode || "user",
+      resolution: capturePreset,
+    });
+    const localVideoEl = shadow.getElementById("ju-local-video");
+    if (localVideoEl && localVideoTrack) {
+      attachLocalPreview(localVideoTrack, localVideoEl);
+    }
+    if (localVideoTrack) {
+      await room.localParticipant.publishTrack(localVideoTrack);
+    }
+  }
+
   async function connectLiveKitCall() {
     if (!activeRoomId || isLiveKitConnecting) return;
     isLiveKitConnecting = true;
@@ -1480,7 +1513,7 @@
           dynacast: false,
           publishDefaults: {
             simulcast: false,
-            videoCodec: getVideoCodec(),
+            videoCodec: "vp8",
           },
           videoCaptureDefaults: {
             resolution: getVideoCapturePreset(),
@@ -1488,24 +1521,14 @@
         });
         livekitRoom = room;
 
-        room.on(window.LivekitClient.RoomEvent.LocalTrackPublished, (publication) => {
-          const track = publication.track;
-          if (!track || track.kind !== window.LivekitClient.Track.Kind.Video) return;
-          localVideoTrack = track;
-          const localVideoEl = shadow.getElementById("ju-local-video");
-          if (localVideoEl) {
-            attachVideoTrack(track, localVideoEl);
-            localVideoEl.classList.remove("hidden");
-          }
-        });
-
         room.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, pub, participant) => {
           const waitingOverlay = shadow.getElementById("ju-video-waiting");
           if (track.kind === window.LivekitClient.Track.Kind.Video) {
             remoteVideoTrack = track;
             const remoteVideo = shadow.getElementById("ju-remote-video");
             if (remoteVideo) {
-              attachVideoTrack(track, remoteVideo);
+              remoteVideo.muted = true;
+              attachVideoTrack(track, remoteVideo, false);
               if (waitingOverlay) waitingOverlay.classList.add("hidden");
             }
           }
@@ -1514,17 +1537,6 @@
             remoteAudioEl = audioEl;
             audioEl.volume = 1.0;
             shadow.appendChild(audioEl);
-          }
-        });
-
-        room.on(window.LivekitClient.RoomEvent.TrackPublished, (publication, participant) => {
-          if (participant.isLocal) return;
-          if (publication.kind === window.LivekitClient.Track.Kind.Video && publication.track) {
-            remoteVideoTrack = publication.track;
-            const remoteVideo = shadow.getElementById("ju-remote-video");
-            const waitingOverlay = shadow.getElementById("ju-video-waiting");
-            if (remoteVideo) attachVideoTrack(publication.track, remoteVideo);
-            if (waitingOverlay) waitingOverlay.classList.add("hidden");
           }
         });
 
@@ -1554,34 +1566,40 @@
         isVideoCallActive = true;
         updateVideoPillState();
 
+        // 1. Microphone first (stable order before 336f86d optimization)
+        try {
+          localAudioTrack = await window.LivekitClient.createLocalAudioTrack({
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          });
+          if (localAudioTrack) {
+            await room.localParticipant.publishTrack(localAudioTrack);
+          }
+        } catch (e) {
+          console.warn("[JustUS] Microphone setup notice:", e);
+        }
+
+        // 2. Camera — direct attach + publish (proven on iOS WKWebView)
+        if (isCamEnabled) {
+          try {
+            await publishLocalCamera(room);
+          } catch (e) {
+            console.warn("[JustUS] Camera setup notice:", e);
+            addEventLog("⚠️ Camera unavailable — check app permissions", "System");
+          }
+        }
+
+        // Bind remote video already publishing when we joined
         room.remoteParticipants.forEach((participant) => {
           participant.videoTrackPublications.forEach((pub) => {
             if (!pub.isSubscribed && typeof pub.setSubscribed === "function") {
               pub.setSubscribed(true);
             }
-          });
-        });
-
-        try {
-          await room.localParticipant.setCameraEnabled(true);
-        } catch (e) {
-          console.warn("[JustUS] Camera setup notice:", e);
-          addEventLog("⚠️ Camera unavailable — check app permissions", "System");
-        }
-
-        try {
-          await room.localParticipant.setMicrophoneEnabled(true);
-        } catch (e) {
-          console.warn("[JustUS] Microphone setup notice:", e);
-        }
-
-        // Bind video tracks that were already publishing when we joined
-        room.remoteParticipants.forEach((participant) => {
-          participant.videoTrackPublications.forEach((pub) => {
             if (pub.track && pub.isSubscribed) {
               remoteVideoTrack = pub.track;
               const remoteVideo = shadow.getElementById("ju-remote-video");
-              if (remoteVideo) attachVideoTrack(pub.track, remoteVideo);
+              if (remoteVideo) attachVideoTrack(pub.track, remoteVideo, false);
               const waitingOverlay = shadow.getElementById("ju-video-waiting");
               if (waitingOverlay) waitingOverlay.classList.add("hidden");
             }
@@ -1667,18 +1685,18 @@
       try {
         if (!isCamEnabled) {
           if (localVideoEl) localVideoEl.classList.add("hidden");
-          await livekitRoom.localParticipant.setCameraEnabled(false);
+          await localVideoTrack.mute();
         } else {
-          await livekitRoom.localParticipant.setCameraEnabled(true);
           if (localVideoEl) {
             localVideoEl.classList.remove("hidden");
-            if (localVideoTrack) attachVideoTrack(localVideoTrack, localVideoEl);
+            attachLocalPreview(localVideoTrack, localVideoEl);
           }
+          await localVideoTrack.unmute();
         }
       } catch (e) {}
     } else if (isCamEnabled && livekitRoom) {
       try {
-        await livekitRoom.localParticipant.setCameraEnabled(true);
+        await publishLocalCamera(livekitRoom);
       } catch (e) {}
     }
   }
@@ -1697,22 +1715,7 @@
     }
     if (livekitRoom && isCamEnabled) {
       try {
-        await livekitRoom.localParticipant.setCameraEnabled(false);
-        localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
-          facingMode: currentFacingMode,
-          resolution: getVideoCapturePreset(),
-        });
-        const localVideoEl = shadow.getElementById("ju-local-video");
-        if (localVideoEl && localVideoTrack) {
-          attachVideoTrack(localVideoTrack, localVideoEl);
-          localVideoEl.classList.remove("hidden");
-        }
-        if (localVideoTrack) {
-          await livekitRoom.localParticipant.publishTrack(localVideoTrack, {
-            simulcast: false,
-            videoCodec: getVideoCodec(),
-          });
-        }
+        await publishLocalCamera(livekitRoom);
       } catch (e) {}
     }
   }

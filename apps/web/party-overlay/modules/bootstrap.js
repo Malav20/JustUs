@@ -137,14 +137,13 @@
   }
 
   function getVideoCapturePreset() {
-    return IS_TOUCH_DEVICE
-      ? { width: 320, height: 240, frameRate: 15 }
-      : { width: 480, height: 360, frameRate: 24 };
-  }
-
-  /** H.264 decodes reliably on iOS Safari + desktop Chrome; VP8 often shows black on iOS. */
-  function getVideoCodec() {
-    return "h264";
+    // Match pre-optimization preset that worked on iPad (336f86d regressed touch to 320x240).
+    if (IS_TOUCH_DEVICE) {
+      const lk = window.LivekitClient;
+      if (lk?.VideoPresets?.h216?.resolution) return lk.VideoPresets.h216.resolution;
+      return { width: 384, height: 216, frameRate: 15 };
+    }
+    return { width: 480, height: 360, frameRate: 24 };
   }
 
   async function playVideoElement(el) {
@@ -163,21 +162,34 @@
     }
   }
 
-  function attachVideoTrack(track, videoEl) {
+  function attachVideoTrack(track, videoEl, isLocalPreview) {
     if (!track || !videoEl) return;
-    try {
-      track.detach();
-    } catch (e) {}
+    // detach() before attach breaks local camera preview on iOS WKWebView (faea8ba regression).
+    if (!isLocalPreview) {
+      try {
+        track.detach();
+      } catch (e) {}
+    }
     try {
       track.attach(videoEl);
     } catch (e) {
       console.warn("[JustUS] track.attach failed:", e);
     }
-    const mediaTrack = track.mediaStreamTrack;
-    if (mediaTrack) {
-      try {
-        videoEl.srcObject = new MediaStream([mediaTrack]);
-      } catch (e) {}
-    }
     playVideoElement(videoEl);
+  }
+
+  function attachLocalPreview(track, videoEl) {
+    if (!track || !videoEl) return;
+    videoEl.muted = true;
+    videoEl.setAttribute("playsinline", "true");
+    videoEl.setAttribute("webkit-playsinline", "true");
+    try {
+      track.attach(videoEl);
+    } catch (e) {
+      console.warn("[JustUS] local preview attach failed:", e);
+    }
+    videoEl.classList.remove("hidden");
+    videoEl.play().catch(() => {
+      setTimeout(() => videoEl.play().catch(() => {}), 150);
+    });
   }

@@ -2,6 +2,9 @@
   // ─────────────────────────────────────────────────────────────────
   const hostDiv = document.createElement("div");
   hostDiv.id = "justus-party-overlay-root";
+  if (typeof IS_IOS !== "undefined" && IS_IOS) {
+    hostDiv.classList.add("ju-is-ios");
+  }
   hostDiv.style.cssText =
     "position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 2147483647 !important; pointer-events: none !important; margin: 0 !important; padding: 0 !important; border: none !important;";
 
@@ -150,6 +153,9 @@
     }
     .local-video-pip.hidden {
       display: none !important;
+    }
+    :host(.ju-is-ios) .local-video-pip {
+      transform: none !important;
     }
 
     .video-waiting-overlay {

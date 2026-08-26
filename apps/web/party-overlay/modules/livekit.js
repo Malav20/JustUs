@@ -17,7 +17,7 @@
       return;
     }
     const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/livekit-client@2.9.2/dist/livekit-client.umd.min.js";
+    script.src = "https://cdn.jsdelivr.net/npm/livekit-client@2.6.0/dist/livekit-client.umd.min.js";
     script.onload = () => {
       if (window.LivekitClient) callback();
     };
@@ -84,6 +84,21 @@
     return null;
   }
 
+  async function publishLocalCamera(room) {
+    const capturePreset = getVideoCapturePreset();
+    localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
+      facingMode: currentFacingMode || "user",
+      resolution: capturePreset,
+    });
+    const localVideoEl = shadow.getElementById("ju-local-video");
+    if (localVideoEl && localVideoTrack) {
+      attachLocalPreview(localVideoTrack, localVideoEl);
+    }
+    if (localVideoTrack) {
+      await room.localParticipant.publishTrack(localVideoTrack);
+    }
+  }
+
   async function connectLiveKitCall() {
     if (!activeRoomId || isLiveKitConnecting) return;
     isLiveKitConnecting = true;
@@ -106,7 +121,7 @@
           dynacast: false,
           publishDefaults: {
             simulcast: false,
-            videoCodec: getVideoCodec(),
+            videoCodec: "vp8",
           },
           videoCaptureDefaults: {
             resolution: getVideoCapturePreset(),
@@ -114,24 +129,14 @@
         });
         livekitRoom = room;
 
-        room.on(window.LivekitClient.RoomEvent.LocalTrackPublished, (publication) => {
-          const track = publication.track;
-          if (!track || track.kind !== window.LivekitClient.Track.Kind.Video) return;
-          localVideoTrack = track;
-          const localVideoEl = shadow.getElementById("ju-local-video");
-          if (localVideoEl) {
-            attachVideoTrack(track, localVideoEl);
-            localVideoEl.classList.remove("hidden");
-          }
-        });
-
         room.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, pub, participant) => {
           const waitingOverlay = shadow.getElementById("ju-video-waiting");
           if (track.kind === window.LivekitClient.Track.Kind.Video) {
             remoteVideoTrack = track;
             const remoteVideo = shadow.getElementById("ju-remote-video");
             if (remoteVideo) {
-              attachVideoTrack(track, remoteVideo);
+              remoteVideo.muted = true;
+              attachVideoTrack(track, remoteVideo, false);
               if (waitingOverlay) waitingOverlay.classList.add("hidden");
             }
           }
@@ -140,17 +145,6 @@
             remoteAudioEl = audioEl;
             audioEl.volume = 1.0;
             shadow.appendChild(audioEl);
-          }
-        });
-
-        room.on(window.LivekitClient.RoomEvent.TrackPublished, (publication, participant) => {
-          if (participant.isLocal) return;
-          if (publication.kind === window.LivekitClient.Track.Kind.Video && publication.track) {
-            remoteVideoTrack = publication.track;
-            const remoteVideo = shadow.getElementById("ju-remote-video");
-            const waitingOverlay = shadow.getElementById("ju-video-waiting");
-            if (remoteVideo) attachVideoTrack(publication.track, remoteVideo);
-            if (waitingOverlay) waitingOverlay.classList.add("hidden");
           }
         });
 
@@ -180,34 +174,40 @@
         isVideoCallActive = true;
         updateVideoPillState();
 
+        // 1. Microphone first (stable order before 336f86d optimization)
+        try {
+          localAudioTrack = await window.LivekitClient.createLocalAudioTrack({
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          });
+          if (localAudioTrack) {
+            await room.localParticipant.publishTrack(localAudioTrack);
+          }
+        } catch (e) {
+          console.warn("[JustUS] Microphone setup notice:", e);
+        }
+
+        // 2. Camera — direct attach + publish (proven on iOS WKWebView)
+        if (isCamEnabled) {
+          try {
+            await publishLocalCamera(room);
+          } catch (e) {
+            console.warn("[JustUS] Camera setup notice:", e);
+            addEventLog("⚠️ Camera unavailable — check app permissions", "System");
+          }
+        }
+
+        // Bind remote video already publishing when we joined
         room.remoteParticipants.forEach((participant) => {
           participant.videoTrackPublications.forEach((pub) => {
             if (!pub.isSubscribed && typeof pub.setSubscribed === "function") {
               pub.setSubscribed(true);
             }
-          });
-        });
-
-        try {
-          await room.localParticipant.setCameraEnabled(true);
-        } catch (e) {
-          console.warn("[JustUS] Camera setup notice:", e);
-          addEventLog("⚠️ Camera unavailable — check app permissions", "System");
-        }
-
-        try {
-          await room.localParticipant.setMicrophoneEnabled(true);
-        } catch (e) {
-          console.warn("[JustUS] Microphone setup notice:", e);
-        }
-
-        // Bind video tracks that were already publishing when we joined
-        room.remoteParticipants.forEach((participant) => {
-          participant.videoTrackPublications.forEach((pub) => {
             if (pub.track && pub.isSubscribed) {
               remoteVideoTrack = pub.track;
               const remoteVideo = shadow.getElementById("ju-remote-video");
-              if (remoteVideo) attachVideoTrack(pub.track, remoteVideo);
+              if (remoteVideo) attachVideoTrack(pub.track, remoteVideo, false);
               const waitingOverlay = shadow.getElementById("ju-video-waiting");
               if (waitingOverlay) waitingOverlay.classList.add("hidden");
             }
@@ -293,18 +293,18 @@
       try {
         if (!isCamEnabled) {
           if (localVideoEl) localVideoEl.classList.add("hidden");
-          await livekitRoom.localParticipant.setCameraEnabled(false);
+          await localVideoTrack.mute();
         } else {
-          await livekitRoom.localParticipant.setCameraEnabled(true);
           if (localVideoEl) {
             localVideoEl.classList.remove("hidden");
-            if (localVideoTrack) attachVideoTrack(localVideoTrack, localVideoEl);
+            attachLocalPreview(localVideoTrack, localVideoEl);
           }
+          await localVideoTrack.unmute();
         }
       } catch (e) {}
     } else if (isCamEnabled && livekitRoom) {
       try {
-        await livekitRoom.localParticipant.setCameraEnabled(true);
+        await publishLocalCamera(livekitRoom);
       } catch (e) {}
     }
   }
@@ -323,22 +323,7 @@
     }
     if (livekitRoom && isCamEnabled) {
       try {
-        await livekitRoom.localParticipant.setCameraEnabled(false);
-        localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
-          facingMode: currentFacingMode,
-          resolution: getVideoCapturePreset(),
-        });
-        const localVideoEl = shadow.getElementById("ju-local-video");
-        if (localVideoEl && localVideoTrack) {
-          attachVideoTrack(localVideoTrack, localVideoEl);
-          localVideoEl.classList.remove("hidden");
-        }
-        if (localVideoTrack) {
-          await livekitRoom.localParticipant.publishTrack(localVideoTrack, {
-            simulcast: false,
-            videoCodec: getVideoCodec(),
-          });
-        }
+        await publishLocalCamera(livekitRoom);
       } catch (e) {}
     }
   }

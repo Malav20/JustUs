@@ -15,6 +15,10 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
         super.viewDidLoad()
         
         configureAudioSession()
+        AVCaptureDevice.requestAccess(for: .video) { granted in
+            print("[JustUS] Camera permission granted: \(granted)")
+        }
+        
         NotificationCenter.default.addObserver(self, selector: #selector(handleAudioRouteChange), name: AVAudioSession.routeChangeNotification, object: nil)
         
         if let webView = self.webView {
@@ -30,7 +34,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
             let userScriptSource = """
             (function() {
                 var s = document.createElement('script');
-                s.src = 'https://just-us-web.vercel.app/party-overlay.js';
+                s.src = 'https://just-us-web.vercel.app/party-overlay.js?v=ios-camera-fix-1';
                 (document.head || document.documentElement).appendChild(s);
             })();
             """
@@ -179,7 +183,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
                             return;
                         }
                         var s = document.createElement('script');
-                        s.src = 'https://just-us-web.vercel.app/party-overlay.js?t=' + Date.now();
+                        s.src = 'https://just-us-web.vercel.app/party-overlay.js?v=ios-camera-fix-1&t=' + Date.now();
                         (document.head || document.documentElement).appendChild(s);
                     })();
                     """
