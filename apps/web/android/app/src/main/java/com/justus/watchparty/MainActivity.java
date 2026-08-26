@@ -27,7 +27,7 @@ public class MainActivity extends BridgeActivity {
     private float startX, startY;
     private static final int CLICK_ACTION_THRESHOLD = 10;
     private static final String HUB_URL = "https://just-us-web.vercel.app/mobile";
-    private static final String DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+    private static final String CHROMEOS_USER_AGENT = "Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
     public class WakeLockBridge {
         @JavascriptInterface
@@ -61,7 +61,7 @@ public class MainActivity extends BridgeActivity {
             settings.setJavaScriptCanOpenWindowsAutomatically(true);
             settings.setLoadsImagesAutomatically(true);
             settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-            settings.setUserAgentString(DESKTOP_USER_AGENT);
+            settings.setUserAgentString(CHROMEOS_USER_AGENT);
 
             CookieManager cookieManager = CookieManager.getInstance();
             cookieManager.setAcceptCookie(true);
@@ -70,11 +70,17 @@ public class MainActivity extends BridgeActivity {
             // Register native wake lock bridge for JavaScript
             webView.addJavascriptInterface(new WakeLockBridge(), "AndroidWakeLock");
 
-            // WebChromeClient with camera, microphone & protected DRM media auto-grant
+            // WebChromeClient with camera, microphone & protected DRM media (RESOURCE_PROTECTED_MEDIA_ID) auto-grant
             webView.setWebChromeClient(new BridgeWebChromeClient(this.bridge) {
                 @Override
                 public void onPermissionRequest(final PermissionRequest request) {
-                    runOnUiThread(() -> request.grant(request.getResources()));
+                    runOnUiThread(() -> {
+                        try {
+                            request.grant(request.getResources());
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    });
                 }
             });
 
@@ -132,7 +138,46 @@ public class MainActivity extends BridgeActivity {
         if (isExternal) {
             String injectionScript =
                 "(function() {" +
-                "  try { Object.defineProperty(navigator, 'platform', { get: function() { return 'Win32'; } }); } catch(e) {}" +
+                "  try {" +
+                "    Object.defineProperty(navigator, 'platform', { get: function() { return 'Linux x86_64'; }, configurable: true });" +
+                "    if (navigator.userAgentData) {" +
+                "      Object.defineProperty(navigator, 'userAgentData', {" +
+                "        get: function() {" +
+                "          return {" +
+                "            brands: [" +
+                "              { brand: 'Chromium', version: '130' }," +
+                "              { brand: 'Google Chrome', version: '130' }," +
+                "              { brand: 'Not?A_Brand', version: '99' }" +
+                "            ]," +
+                "            mobile: false," +
+                "            platform: 'Chrome OS'," +
+                "            getHighEntropyValues: function(hints) {" +
+                "              return Promise.resolve({" +
+                "                architecture: 'x86'," +
+                "                bitness: '64'," +
+                "                brands: [" +
+                "                  { brand: 'Chromium', version: '130' }," +
+                "                  { brand: 'Google Chrome', version: '130' }," +
+                "                  { brand: 'Not?A_Brand', version: '99' }" +
+                "                ]," +
+                "                fullVersionList: [" +
+                "                  { brand: 'Chromium', version: '130.0.0.0' }," +
+                "                  { brand: 'Google Chrome', version: '130.0.0.0' }," +
+                "                  { brand: 'Not?A_Brand', version: '99.0.0.0' }" +
+                "                ]," +
+                "                mobile: false," +
+                "                model: ''," +
+                "                platform: 'Chrome OS'," +
+                "                platformVersion: '14541.0.0'," +
+                "                uaFullVersion: '130.0.0.0'" +
+                "              });" +
+                "            }" +
+                "          };" +
+                "        }," +
+                "        configurable: true" +
+                "      });" +
+                "    }" +
+                "  } catch(e) {}" +
                 "  if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {" +
                 "    if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === 'function') window.__JUSTUS_ENSURE_MOUNTED__();" +
                 "    return;" +
