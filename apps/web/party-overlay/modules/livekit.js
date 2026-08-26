@@ -37,6 +37,8 @@
   let reconnectTimer     = null;
   let autoCallScheduled  = false;
   let userHungUp         = false;
+  let ctrlHideTimer      = null;
+  let captureUsesCombinedAv = false;
   // Simple stroke icons for PIP controls (no emoji)
   const PIP_ICONS = {
     close: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
@@ -288,8 +290,89 @@
     }
   }
 
+  async function startLocalCameraWithMic() {
+    if (!navigator.mediaDevices?.getUserMedia || livekitRoom?.state !== "connected") return;
+    const LK = window.LivekitClient;
+    if (!LK) return;
+
+    try {
+      if (lkLocalVideoTrack) {
+        try { await livekitRoom.localParticipant.unpublishTrack(lkLocalVideoTrack); } catch {}
+        lkLocalVideoTrack = null;
+      }
+      if (lkLocalAudioTrack) {
+        try { await livekitRoom.localParticipant.unpublishTrack(lkLocalAudioTrack); } catch {}
+        try { lkLocalAudioTrack.stop(); } catch {}
+        lkLocalAudioTrack = null;
+      }
+      if (localCameraStream) {
+        localCameraStream.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+        localCameraStream = null;
+      }
+      if (pipLocalVideo) pipLocalVideo.srcObject = null;
+
+      // Single capture keeps iOS AVAudioSession + camera alive together.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: {
+          facingMode: { ideal: currentFacingMode },
+          width: { ideal: 480 },
+          height: { ideal: 360 },
+          frameRate: { ideal: 24 },
+        },
+      });
+
+      localCameraStream = stream;
+      captureUsesCombinedAv = true;
+
+      const videoTrack = stream.getVideoTracks()[0];
+      const audioTrack = stream.getAudioTracks()[0];
+
+      if (pipLocalVideo && videoTrack && isCamEnabled) {
+        setVideoSrc(pipLocalVideo, new MediaStream([videoTrack]));
+        pipLocalVideo.style.display = "block";
+      }
+
+      if (videoTrack && isCamEnabled) await publishCameraTrack(videoTrack);
+
+      if (audioTrack && isMicEnabled) {
+        lkLocalAudioTrack = new LK.LocalAudioTrack(audioTrack, undefined, false);
+        await livekitRoom.localParticipant.publishTrack(lkLocalAudioTrack);
+        lkLocalAudioTrack.mediaStreamTrack.enabled = true;
+      }
+    } catch (err) {
+      console.warn("[JustUS] Combined AV capture:", err);
+      captureUsesCombinedAv = false;
+      isMicEnabled = false;
+      updatePipCtrlButtons();
+      addEventLog("⚠️ Camera/mic — " + (err.message || err.name), "System");
+    }
+  }
+
+  async function restartLocalCameraAfterMic() {
+    await new Promise((r) => setTimeout(r, 250));
+    const vt = localCameraStream?.getVideoTracks()[0];
+    if (vt && vt.readyState === "live") {
+      restoreLocalVideoPreview();
+      return;
+    }
+    await startLocalCamera(true);
+  }
+
   async function startLocalMic() {
     if (!navigator.mediaDevices?.getUserMedia || livekitRoom?.state !== "connected") return;
+
+    // iOS: audio-only getUserMedia kills the existing camera capture — use combined capture.
+    if (IS_IOS && isCamEnabled) {
+      await startLocalCameraWithMic();
+      return;
+    }
+
+    if (captureUsesCombinedAv && lkLocalAudioTrack?.mediaStreamTrack) {
+      lkLocalAudioTrack.mediaStreamTrack.enabled = true;
+      return;
+    }
+
     const LK = window.LivekitClient;
     if (!LK) return;
     try {
@@ -307,8 +390,7 @@
       await livekitRoom.localParticipant.publishTrack(lkLocalAudioTrack);
       lkLocalAudioTrack.mediaStreamTrack.enabled = true;
 
-      // iOS: mic acquisition disrupts camera — refresh preview after audio session settles.
-      setTimeout(() => restoreLocalVideoPreview(), 150);
+      await restartLocalCameraAfterMic();
     } catch (err) {
       console.warn("[JustUS] Mic:", err);
       isMicEnabled = false;
@@ -334,14 +416,13 @@
   }
 
   // ── local camera via getUserMedia (bypasses LiveKit camera management) ─────
-  async function startLocalCamera() {
+  async function startLocalCamera(force = false) {
     if (!navigator.mediaDevices?.getUserMedia) {
       addEventLog("⚠️ getUserMedia not available", "System");
       return;
     }
     try {
-      if (localCameraStream) {
-        // Reuse existing tracks if still live
+      if (!force && localCameraStream) {
         const tracks = localCameraStream.getVideoTracks();
         if (tracks.length && tracks[0].readyState === "live") {
           tracks[0].enabled = isCamEnabled;
@@ -353,6 +434,15 @@
         }
       }
 
+      if (localCameraStream) {
+        localCameraStream.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+        localCameraStream = null;
+      }
+      if (lkLocalVideoTrack && livekitRoom?.state === "connected") {
+        try { await livekitRoom.localParticipant.unpublishTrack(lkLocalVideoTrack); } catch {}
+        lkLocalVideoTrack = null;
+      }
+
       localCameraStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode  : { ideal: currentFacingMode },
@@ -362,6 +452,7 @@
         },
         audio: false,
       });
+      captureUsesCombinedAv = false;
 
       if (pipLocalVideo) {
         setVideoSrc(pipLocalVideo, localCameraStream);
@@ -523,6 +614,7 @@
     autoCallScheduled = false;
     clearTimeout(reconnectTimer);
     clearLkIdentity();
+    captureUsesCombinedAv = false;
 
     // Stop camera hardware (safe to stop on hangup — not toggling)
     if (localCameraStream) {
@@ -562,7 +654,6 @@
       if (lkLocalAudioTrack?.mediaStreamTrack) {
         lkLocalAudioTrack.mediaStreamTrack.enabled = false;
       }
-      restoreLocalVideoPreview();
     }
   }
 
@@ -584,7 +675,10 @@
   // ── flip camera ────────────────────────────────────────────────────────────
   async function flipCamera() {
     currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
-    // Stop existing stream before re-acquiring
+    if (IS_IOS && isMicEnabled && isCamEnabled) {
+      await startLocalCameraWithMic();
+      return;
+    }
     if (localCameraStream) {
       localCameraStream.getVideoTracks().forEach((t) => { try { t.stop(); } catch {} });
       localCameraStream = null;
