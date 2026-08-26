@@ -35,6 +35,18 @@
   window.addEventListener("yt-page-data-updated", checkUrlChange);
   window.addEventListener("popstate", checkUrlChange);
 
+  // Netflix/Prime SPA navigation — re-attach overlay after in-page route changes
+  let lastOverlayPath = location.pathname + location.search;
+  setInterval(() => {
+    const currentPath = location.pathname + location.search;
+    if (currentPath !== lastOverlayPath) {
+      lastOverlayPath = currentPath;
+      if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === "function") {
+        window.__JUSTUS_ENSURE_MOUNTED__();
+      }
+    }
+  }, 800);
+
   // Periodic video, URL, and wake lock watcher — lighter on touch devices
   let watcherBusy = false;
   setInterval(() => {

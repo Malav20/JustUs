@@ -42,6 +42,7 @@
   }
 
   if (document.body || document.documentElement) ensureOverlayMounted();
+  window.__JUSTUS_ENSURE_MOUNTED__ = ensureOverlayMounted;
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", ensureOverlayMounted);
   }

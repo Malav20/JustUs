@@ -7,7 +7,7 @@
 // (the SYNC object). Change both together.
 
 (function () {
-  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-v9";
+  window.__JUSTUS_OVERLAY_VERSION__ = "android-netflix-v1";
   if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {
     if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === "function") {
       window.__JUSTUS_ENSURE_MOUNTED__();
@@ -101,11 +101,12 @@
   }
 
   // ── Touch / mobile helpers (iPad WKWebView + YouTube gesture competition) ──
+  const IS_ANDROID = !!window.__JUSTUS_NATIVE_ANDROID__;
   const IS_IOS =
     !!window.__JUSTUS_NATIVE_IOS__ ||
     /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const IS_TOUCH_DEVICE = IS_IOS || navigator.maxTouchPoints > 0;
+  const IS_TOUCH_DEVICE = IS_IOS || IS_ANDROID || navigator.maxTouchPoints > 0;
   const DRAG_THRESHOLD_PX = IS_TOUCH_DEVICE ? 14 : 6;
 
   function getEventPoint(e) {

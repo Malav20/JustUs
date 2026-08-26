@@ -296,6 +296,9 @@
       if (window.webkit?.messageHandlers?.prepareCallAudio) {
         window.webkit.messageHandlers.prepareCallAudio.postMessage({});
       }
+      if (window.AndroidPrepareCallAudio?.prepareCallAudio) {
+        window.AndroidPrepareCallAudio.prepareCallAudio();
+      }
     } catch {}
   }
 

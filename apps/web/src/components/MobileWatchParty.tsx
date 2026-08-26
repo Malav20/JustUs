@@ -153,6 +153,17 @@ export function MobileWatchParty() {
           console.warn("streamAuth message handler error:", e);
         }
       }
+
+      const androidStreamAuth = (window as any).AndroidStreamAuth;
+      if (androidStreamAuth?.loadUrl) {
+        try {
+          androidStreamAuth.loadUrl(targetUrl);
+          return;
+        } catch (e) {
+          console.warn("AndroidStreamAuth.loadUrl error:", e);
+        }
+      }
+
       // Top-level direct navigation in WKWebView / browser
       window.location.href = targetUrl;
     }

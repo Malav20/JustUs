@@ -11,7 +11,7 @@
 // (the SYNC object). Change both together.
 
 (function () {
-  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-v9";
+  window.__JUSTUS_OVERLAY_VERSION__ = "android-netflix-v1";
   if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {
     if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === "function") {
       window.__JUSTUS_ENSURE_MOUNTED__();
@@ -105,11 +105,12 @@
   }
 
   // ── Touch / mobile helpers (iPad WKWebView + YouTube gesture competition) ──
+  const IS_ANDROID = !!window.__JUSTUS_NATIVE_ANDROID__;
   const IS_IOS =
     !!window.__JUSTUS_NATIVE_IOS__ ||
     /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const IS_TOUCH_DEVICE = IS_IOS || navigator.maxTouchPoints > 0;
+  const IS_TOUCH_DEVICE = IS_IOS || IS_ANDROID || navigator.maxTouchPoints > 0;
   const DRAG_THRESHOLD_PX = IS_TOUCH_DEVICE ? 14 : 6;
 
   function getEventPoint(e) {
@@ -807,6 +808,7 @@
   }
 
   if (document.body || document.documentElement) ensureOverlayMounted();
+  window.__JUSTUS_ENSURE_MOUNTED__ = ensureOverlayMounted;
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", ensureOverlayMounted);
   }
@@ -1147,6 +1149,9 @@
     try {
       if (window.webkit?.messageHandlers?.prepareCallAudio) {
         window.webkit.messageHandlers.prepareCallAudio.postMessage({});
+      }
+      if (window.AndroidPrepareCallAudio?.prepareCallAudio) {
+        window.AndroidPrepareCallAudio.prepareCallAudio();
       }
     } catch {}
   }
@@ -2541,6 +2546,18 @@ function shouldSeek(currentTime, targetTime, threshold = SYNC.EVENT_SEEK_THRESHO
   window.addEventListener("yt-navigate-finish", checkUrlChange);
   window.addEventListener("yt-page-data-updated", checkUrlChange);
   window.addEventListener("popstate", checkUrlChange);
+
+  // Netflix/Prime SPA navigation — re-attach overlay after in-page route changes
+  let lastOverlayPath = location.pathname + location.search;
+  setInterval(() => {
+    const currentPath = location.pathname + location.search;
+    if (currentPath !== lastOverlayPath) {
+      lastOverlayPath = currentPath;
+      if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === "function") {
+        window.__JUSTUS_ENSURE_MOUNTED__();
+      }
+    }
+  }, 800);
 
   // Periodic video, URL, and wake lock watcher — lighter on touch devices
   let watcherBusy = false;
