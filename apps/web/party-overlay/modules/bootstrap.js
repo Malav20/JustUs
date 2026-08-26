@@ -7,7 +7,7 @@
 // (the SYNC object). Change both together.
 
 (function () {
-  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-v5";
+  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-v6";
   if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {
     if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === "function") {
       window.__JUSTUS_ENSURE_MOUNTED__();

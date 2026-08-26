@@ -11,7 +11,7 @@
 // (the SYNC object). Change both together.
 
 (function () {
-  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-v5";
+  window.__JUSTUS_OVERLAY_VERSION__ = "ios-camera-v6";
   if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {
     if (typeof window.__JUSTUS_ENSURE_MOUNTED__ === "function") {
       window.__JUSTUS_ENSURE_MOUNTED__();
@@ -522,185 +522,8 @@
       100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
 
-    /* Ultra-Sleek Floating Video-First PIP Window (Hardware Composited) */
-    .video-call-window {
-      position: fixed;
-      top: 70px;
-      right: 20px;
-      width: 240px;
-      height: 180px;
-      min-width: 160px;
-      min-height: 120px;
-      max-width: 85vw;
-      max-height: 80vh;
-      border-radius: 18px;
-      /* Transparent — actual video is rendered in document.body <video> elements
-         that sit below this Shadow DOM stacking context but are visible through it */
-      background: transparent;
-      border: 1.5px solid rgba(255, 255, 255, 0.22);
-      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.85);
-      overflow: visible;
-      z-index: 2147483645;
-      pointer-events: auto;
-      user-select: none;
-      -webkit-user-select: none;
-      touch-action: manipulation;
-      transform: translate3d(0, 0, 0);
-      will-change: transform;
-      -webkit-backface-visibility: hidden;
-      backface-visibility: hidden;
-      transition: box-shadow 0.2s ease;
-    }
-    .video-call-window.hidden {
-      display: none !important;
-    }
-
-    .video-canvas {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      /* Transparent so body-level <video> elements show through the Shadow DOM
-         stacking context. The waiting overlay provides the dark background when
-         no video is playing. */
-      background: transparent;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* .remote-video-feed and .local-video-pip live in document.body (not Shadow DOM)
-       and are styled inline by livekit.js so iOS WKWebView plays them inline. */
-
-    .video-waiting-overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      background: #0d0f18;
-      color: #94A3B8;
-      font-size: 10px;
-      font-weight: 600;
-      z-index: 1;
-      padding: 8px;
-      text-align: center;
-    }
-    .video-waiting-overlay.hidden {
-      display: none !important;
-    }
-    .waiting-pulse {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: #6366F1;
-      animation: pulseRing 1.8s infinite;
-    }
-
-    /* Tap-to-Reveal Controls Overlay */
-    .video-controls-overlay {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, transparent 35%, transparent 60%, rgba(0,0,0,0.85) 100%);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px;
-      z-index: 4;
-      opacity: 1;
-      transition: opacity 0.2s ease;
-      pointer-events: auto;
-    }
-    .video-controls-overlay.hidden {
-      opacity: 0 !important;
-      pointer-events: none !important;
-    }
-
-    .overlay-close-btn {
-      align-self: flex-end !important;
-      width: 28px !important;
-      height: 28px !important;
-      border-radius: 14px !important;
-      background: rgba(0, 0, 0, 0.75) !important;
-      border: 1px solid rgba(255, 255, 255, 0.35) !important;
-      color: #ffffff !important;
-      font-size: 13px !important;
-      font-weight: 700 !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      cursor: pointer !important;
-      touch-action: manipulation !important;
-      -webkit-tap-highlight-color: transparent !important;
-      pointer-events: auto !important;
-      z-index: 10 !important;
-    }
-    .overlay-close-btn:active { transform: scale(0.92) !important; }
-
-    .video-control-bar {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 5px 8px;
-      background: rgba(12, 14, 24, 0.92);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 22px;
-      pointer-events: auto;
-      z-index: 10;
-    }
-
-    .call-ctrl-btn {
-      width: 34px !important;
-      height: 34px !important;
-      min-width: 34px !important;
-      min-height: 34px !important;
-      border-radius: 17px !important;
-      background: rgba(255, 255, 255, 0.08) !important;
-      border: 1px solid rgba(255, 255, 255, 0.25) !important;
-      color: #ffffff !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      cursor: pointer !important;
-      touch-action: manipulation !important;
-      -webkit-tap-highlight-color: transparent !important;
-      user-select: none !important;
-      -webkit-user-select: none !important;
-      pointer-events: auto !important;
-      z-index: 10 !important;
-    }
-    .call-ctrl-btn svg, .call-ctrl-btn path, .call-ctrl-btn rect, .call-ctrl-btn line {
-      pointer-events: none !important;
-    }
-    .call-ctrl-btn:active { transform: scale(0.92) !important; }
-    .call-ctrl-btn.off {
-      background: rgba(239, 68, 68, 0.9) !important;
-      border-color: #EF4444 !important;
-    }
-    .call-ctrl-btn.end-call {
-      background: #EF4444 !important;
-      border-color: #DC2626 !important;
-    }
-
-    .video-resize-handle {
-      position: absolute;
-      bottom: 0;
-      right: 0;
-      width: 32px !important;
-      height: 32px !important;
-      cursor: nwse-resize;
-      display: flex;
-      align-items: flex-end;
-      justify-content: flex-end;
-      padding: 6px;
-      touch-action: none;
-      z-index: 20 !important;
-      pointer-events: auto !important;
-    }
+    /* PIP video window is built in document.body by livekit.js with inline styles.
+       No Shadow DOM video elements. */
 
     .drawer-overlay {
       position: fixed !important;
@@ -957,48 +780,7 @@
   const partyPill = shadow.getElementById("ju-party-pill");
   const videoPill = shadow.getElementById("ju-video-pill");
 
-  // Floating Draggable & Resizable Video-First PIP Window
-  const videoWindow = document.createElement("div");
-  videoWindow.className = "video-call-window hidden";
-  videoWindow.id = "ju-video-window";
-  videoWindow.innerHTML = `
-    <div class="video-canvas" id="ju-video-canvas">
-      <div class="video-waiting-overlay" id="ju-video-waiting">
-        <div class="waiting-pulse"></div>
-        <span id="ju-waiting-text">Connecting video call...</span>
-      </div>
-      <!-- Video elements live in document.body (not Shadow DOM) so iOS WKWebView
-           inline-playback policy applies. The canvas is transparent; body videos
-           show through behind the Shadow DOM stacking context. -->
-
-      <!-- Tap-to-Reveal Controls Overlay -->
-      <div class="video-controls-overlay hidden" id="ju-video-controls">
-        <button class="overlay-close-btn" id="ju-btn-close-call" title="Close">✕</button>
-        <div class="video-control-bar">
-          <button class="call-ctrl-btn" id="ju-btn-mic" title="Mute/Unmute Mic">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-          </button>
-          <button class="call-ctrl-btn" id="ju-btn-cam" title="Camera On/Off">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
-          </button>
-          <button class="call-ctrl-btn" id="ju-btn-flip" title="Flip Camera">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-          </button>
-          <button class="call-ctrl-btn end-call" id="ju-btn-hangup" title="End Call">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/></svg>
-          </button>
-        </div>
-      </div>
-
-      <!-- Resize Grip -->
-      <div class="video-resize-handle" id="ju-video-resize-handle" title="Drag to resize">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="3"><line x1="22" y1="2" x2="2" y2="22"/><line x1="22" y1="12" x2="12" y2="22"/></svg>
-      </div>
-    </div>
-  `;
-  shadow.appendChild(videoWindow);
-
-  // Drawer Overlay Element
+  // Drawer Overlay Element (stays in Shadow DOM — no video inside)
   const drawer = document.createElement("div");
   drawer.className = "drawer-overlay";
   shadow.appendChild(drawer);
@@ -1024,639 +806,489 @@
     });
   }
 
-  if (document.body || document.documentElement) {
-    ensureOverlayMounted();
-  }
+  if (document.body || document.documentElement) ensureOverlayMounted();
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", ensureOverlayMounted);
   }
-
   window.addEventListener("yt-navigate-finish", ensureOverlayMounted);
   window.addEventListener("popstate", ensureOverlayMounted);
   window.addEventListener("load", ensureOverlayMounted);
-
   try {
     const observer = new MutationObserver(() => {
-      if (!document.getElementById("justus-party-overlay-root")) {
-        scheduleEnsureMounted();
-      }
+      if (!document.getElementById("justus-party-overlay-root")) scheduleEnsureMounted();
     });
     observer.observe(document.documentElement, { childList: true, subtree: false });
   } catch (e) {}
 
-  // Drawer Open / Close State Controller
   let isDrawerOpen = false;
 
   function openDrawer() {
-    try {
-      isDrawerOpen = true;
-      drawer.classList.add("open");
-      renderDrawerContent();
-    } catch (err) {}
+    try { isDrawerOpen = true; drawer.classList.add("open"); renderDrawerContent(); } catch {}
   }
-
   function closeDrawer(e) {
-    if (e) {
-      try { e.preventDefault(); e.stopPropagation(); } catch (err) {}
-    }
+    if (e) { try { e.preventDefault(); e.stopPropagation(); } catch {} }
     isDrawerOpen = false;
     drawer.classList.remove("open");
   }
-
   function toggleDrawer() {
-    if (isDrawerOpen || drawer.classList.contains("open")) {
-      closeDrawer();
-    } else {
-      openDrawer();
-    }
+    if (isDrawerOpen || drawer.classList.contains("open")) closeDrawer();
+    else openDrawer();
   }
 
-  // Badge taps — bindOverlayTap avoids touchstart + click double-toggle on iPad
+  // Badge taps — bindOverlayTap avoids double-fire on iPad
   bindOverlayTap(partyPill, () => toggleDrawer());
   bindOverlayTap(videoPill, () => toggleVideoCallWindow());
 
-  // Prevent touches inside drawer from reaching YouTube's gesture handlers
-  drawer.addEventListener("touchstart", function(e) { e.stopPropagation(); }, { passive: false });
-  drawer.addEventListener("touchmove", function(e) { e.stopPropagation(); }, { passive: false });
-  drawer.addEventListener("touchend", function(e) { e.stopPropagation(); }, { passive: false });
-  drawer.addEventListener("click", function(e) { e.stopPropagation(); });
+  // Prevent touches inside drawer from reaching the streaming page
+  drawer.addEventListener("touchstart", (e) => e.stopPropagation(), { passive: false });
+  drawer.addEventListener("touchmove",  (e) => e.stopPropagation(), { passive: false });
+  drawer.addEventListener("touchend",   (e) => e.stopPropagation(), { passive: false });
+  drawer.addEventListener("click",      (e) => e.stopPropagation());
 
   // ─────────────────────────────────────────────────────────────────
-  // DRAGGABLE, RESIZABLE & TAP-TO-REVEAL VIDEO WINDOW HANDLERS
+  // NOTE: The video call PIP window is built in document.body by
+  // livekit.js so that iOS WKWebView applies its inline-playback
+  // policy to the <video> elements (Shadow DOM blocks inline playback).
   // ─────────────────────────────────────────────────────────────────
-  const videoCanvas = shadow.getElementById("ju-video-canvas");
-  const resizeHandle = shadow.getElementById("ju-video-resize-handle");
-  const videoControls = shadow.getElementById("ju-video-controls");
-  
-  // Pointer-Based Draggable, Resizable & Tap-to-Reveal Video Window Handlers
-  let isDraggingWindow = false;
-  let hasMovedWindow = false;
-  let dragWindowStartX = 0, dragWindowStartY = 0;
-  let winStartLeft = 0, winStartTop = 0;
-  let controlsHideTimeout = null;
-  let lastControlsToggleTime = 0;
-
-  function toggleControlsOverlay() {
-    if (!videoControls) return;
-    const now = Date.now();
-    if (now - lastControlsToggleTime < 300) return;
-    lastControlsToggleTime = now;
-
-    if (videoControls.classList.contains("hidden")) {
-      videoControls.classList.remove("hidden");
-      resetControlsHideTimer();
-    } else {
-      videoControls.classList.add("hidden");
-      if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
-    }
-  }
-
-  function resetControlsHideTimer() {
-    if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
-    controlsHideTimeout = setTimeout(() => {
-      if (videoControls) videoControls.classList.add("hidden");
-    }, 5000);
-  }
-
-  function isInteractionTargetBlocked(target) {
-    return (
-      target.closest("button") ||
-      target.closest(".call-ctrl-btn") ||
-      target.closest(".overlay-close-btn") ||
-      target.closest(".video-resize-handle") ||
-      target.closest(".video-control-bar")
-    );
-  }
-
-  function onWindowInteractionStart(e) {
-    if (isInteractionTargetBlocked(e.target)) return;
-    const pt = getEventPoint(e);
-    isDraggingWindow = true;
-    hasMovedWindow = false;
-    dragWindowStartX = pt.clientX;
-    dragWindowStartY = pt.clientY;
-    const rect = videoWindow.getBoundingClientRect();
-    winStartLeft = rect.left;
-    winStartTop = rect.top;
-    if (IS_TOUCH_DEVICE) {
-      try {
-        e.preventDefault();
-      } catch (err) {}
-    }
-  }
-
-  let isPointerMoveScheduled = false;
-  let latestPointerEvent = null;
-
-  function onWindowInteractionMove(e) {
-    if (!isDraggingWindow) return;
-    latestPointerEvent = e;
-    if (isPointerMoveScheduled) return;
-    isPointerMoveScheduled = true;
-
-    requestAnimationFrame(() => {
-      isPointerMoveScheduled = false;
-      if (!isDraggingWindow || !latestPointerEvent) return;
-      const pt = getEventPoint(latestPointerEvent);
-      const deltaX = pt.clientX - dragWindowStartX;
-      const deltaY = pt.clientY - dragWindowStartY;
-
-      if (Math.abs(deltaX) > DRAG_THRESHOLD_PX || Math.abs(deltaY) > DRAG_THRESHOLD_PX) {
-        hasMovedWindow = true;
-      }
-
-      if (hasMovedWindow) {
-        const winWidth = videoWindow.offsetWidth;
-        const winHeight = videoWindow.offsetHeight;
-        const newLeft = Math.max(8, Math.min(window.innerWidth - winWidth - 8, winStartLeft + deltaX));
-        const newTop = Math.max(8, Math.min(window.innerHeight - winHeight - 8, winStartTop + deltaY));
-
-        videoWindow.style.left = `${newLeft}px`;
-        videoWindow.style.top = `${newTop}px`;
-        videoWindow.style.right = "auto";
-        syncVideoElements();
-      }
-    });
-
-    if (IS_TOUCH_DEVICE && hasMovedWindow) {
-      try {
-        e.preventDefault();
-      } catch (err) {}
-    }
-  }
-
-  function onWindowInteractionEnd(e) {
-    if (!isDraggingWindow) return;
-    isDraggingWindow = false;
-    if (!hasMovedWindow) {
-      toggleControlsOverlay();
-    }
-    if (IS_TOUCH_DEVICE) {
-      try {
-        e.preventDefault();
-      } catch (err) {}
-    }
-  }
-
-  if (IS_TOUCH_DEVICE) {
-    videoCanvas.addEventListener("touchstart", onWindowInteractionStart, { passive: false, capture: true });
-    window.addEventListener("touchmove", onWindowInteractionMove, { passive: false });
-    window.addEventListener("touchend", onWindowInteractionEnd, { passive: false });
-    window.addEventListener("touchcancel", onWindowInteractionEnd, { passive: false });
-  } else {
-    videoCanvas.addEventListener("pointerdown", onWindowInteractionStart);
-    window.addEventListener("pointermove", onWindowInteractionMove);
-    window.addEventListener("pointerup", onWindowInteractionEnd);
-  }
-
-  // Prevent taps inside controls overlay from closing it
-  videoControls.addEventListener("pointerdown", (e) => {
-    e.stopPropagation();
-    resetControlsHideTimer();
-  });
-  videoControls.addEventListener("click", (e) => {
-    e.stopPropagation();
-    resetControlsHideTimer();
-  });
-
-  // Resize Handlers
-  let isResizingWindow = false;
-  let resizeStartX = 0, resizeStartY = 0;
-  let startWinWidth = 0, startWinHeight = 0;
-
-  function onWindowResizeStart(e) {
-    if (e) {
-      try {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-      } catch (err) {}
-    }
-    isResizingWindow = true;
-    const touch = e.touches ? e.touches[0] : e;
-    resizeStartX = touch.clientX;
-    resizeStartY = touch.clientY;
-    startWinWidth = videoWindow.offsetWidth;
-    startWinHeight = videoWindow.offsetHeight;
-  }
-
-  function onWindowResizeMove(e) {
-    if (!isResizingWindow) return;
-    if (e) {
-      try { e.preventDefault(); } catch (err) {}
-    }
-    const touch = e.touches ? e.touches[0] : e;
-    if (!touch || typeof touch.clientX !== "number") return;
-    const deltaX = touch.clientX - resizeStartX;
-    const deltaY = touch.clientY - resizeStartY;
-
-    const rect = videoWindow.getBoundingClientRect();
-    const maxWidth = window.innerWidth - rect.left - 10;
-    const maxHeight = window.innerHeight - rect.top - 10;
-
-    const newWidth = Math.max(160, Math.min(maxWidth, startWinWidth + deltaX));
-    const newHeight = Math.max(120, Math.min(maxHeight, startWinHeight + deltaY));
-
-    videoWindow.style.width = `${newWidth}px`;
-    videoWindow.style.height = `${newHeight}px`;
-    syncVideoElements();
-  }
-
-  function onWindowResizeEnd() {
-    isResizingWindow = false;
-  }
-
-  resizeHandle.addEventListener("pointerdown", onWindowResizeStart);
-  resizeHandle.addEventListener("touchstart", onWindowResizeStart, { passive: false });
-  window.addEventListener("pointermove", onWindowResizeMove);
-  window.addEventListener("touchmove", onWindowResizeMove, { passive: false });
-  window.addEventListener("pointerup", onWindowResizeEnd);
-  window.addEventListener("touchend", onWindowResizeEnd);
-
-  // Helper to reliably attach click & touch events with instant touch response
-  function setupControlButton(id, callback) {
-    const btn = shadow.getElementById(id);
-    if (!btn) return;
-    bindOverlayTap(btn, () => {
-      resetControlsHideTimer();
-      callback();
-    });
-  }
-
-  // Video Window Control Buttons
-  setupControlButton("ju-btn-close-call", () => {
-    videoWindow.classList.add("hidden");
-  });
-
-  setupControlButton("ju-btn-hangup", () => {
-    leaveLiveKitCall();
-    videoWindow.classList.add("hidden");
-  });
-
-  setupControlButton("ju-btn-mic", () => {
-    toggleMic();
-  });
-
-  setupControlButton("ju-btn-cam", () => {
-    toggleCam();
-  });
-
-  setupControlButton("ju-btn-flip", () => {
-    flipCamera();
-  });
-
-  // ─────────────────────────────────────────────────────────────────
-  // ─── LiveKit Video Call ────────────────────────────────────────────────────
+  // ─── JustUS Video Call PIP ─────────────────────────────────────────────────
   //
-  // WHY body-level <video> elements?
-  //   iOS WKWebView refuses inline playback for <video> inside Shadow DOM.
-  //   The fix is to render video in document.body (light DOM), positioned to
-  //   match the Shadow DOM window shell. The shell stays in Shadow DOM for
-  //   controls, borders, drag, and event isolation.
+  // Architecture: The entire PIP window lives in document.body, never in the
+  // Shadow DOM. This is the only way iOS WKWebView applies its inline-playback
+  // policy to <video> elements.
   //
-  // iOS WKWebView rules:
-  //   1. No `autoplay` attribute — call play() programmatically.
-  //   2. Reset srcObject in setTimeout(0) — forces WebKit repaint.
-  //   3. muted + playsinline required for autoplay without gesture.
-  //   4. Never stop() a track mid-call — iOS can't re-acquire without gesture.
-  //   5. Use mediaStreamTrack.enabled for mute — no round-trip to server.
-  //   6. Remote audio: track.attach() on a body <audio> — not Shadow DOM.
+  // Camera: getUserMedia() directly — no LiveKit camera management.
+  //   LiveKit is used only for signalling/transport (publishTrack).
+  //   This prevents LiveKit's internal mute/restart logic from touching the
+  //   track and causing the "flash then black" symptom on iOS WKWebView.
+  //
+  // Mute: mediaStreamTrack.enabled = false — instant, no re-acquire.
+  // Camera off: same. Never call track.stop() mid-call on iOS.
+  // Remote audio: track.attach() appended to body (not Shadow DOM).
   // ──────────────────────────────────────────────────────────────────────────
 
-  let livekitRoom       = null;
-  let lkLocalVideoTrack = null;
-  let lkLocalAudioTrack = null;
-  let remoteAudioEl     = null;
+  // ── state ─────────────────────────────────────────────────────────────────
+  let livekitRoom        = null;
+  let lkLocalAudioTrack  = null;   // LiveKit LocalAudioTrack (mic)
+  let lkLocalVideoTrack  = null;   // LiveKit LocalVideoTrack (published camera)
+  let localCameraStream  = null;   // raw MediaStream from getUserMedia
+  let remoteAudioEl      = null;   // <audio> in body for remote voice
 
-  // Body-level video elements (live in document.body, not Shadow DOM)
-  let bodyRemoteVideo   = null;
-  let bodyLocalVideo    = null;
+  // The PIP container and its children (all in document.body)
+  let pipContainer       = null;
+  let pipRemoteVideo     = null;
+  let pipLocalVideo      = null;
+  let pipWaitOverlay     = null;
+  let pipCtrlOverlay     = null;
+  let pipStatusText      = null;
 
-  let isVideoCallActive = false;
-  let isMicEnabled      = true;
-  let isCamEnabled      = true;
-  let currentFacingMode = "user";
-  let isLkConnecting    = false;
-  let reconnectTimer    = null;
-  let autoCallScheduled = false;
-  let userHungUp        = false;
+  let isVideoCallActive  = false;
+  let isMicEnabled       = true;
+  let isCamEnabled       = true;
+  let currentFacingMode  = "user";
+  let isLkConnecting     = false;
+  let reconnectTimer     = null;
+  let autoCallScheduled  = false;
+  let userHungUp         = false;
+  let ctrlHideTimer      = null;
 
   // ── identity ───────────────────────────────────────────────────────────────
   function getLkIdentity() {
     try {
       let id = sessionStorage.getItem("justus_lk_id");
-      if (!id) {
-        id = currentUserName + "_" + Math.random().toString(36).slice(2, 8);
-        sessionStorage.setItem("justus_lk_id", id);
-      }
+      if (!id) { id = currentUserName + "_" + Math.random().toString(36).slice(2, 8); sessionStorage.setItem("justus_lk_id", id); }
       return id;
     } catch { return currentUserName + "_" + Math.random().toString(36).slice(2, 8); }
   }
-  function clearLkIdentity() {
-    try { sessionStorage.removeItem("justus_lk_id"); } catch {}
-  }
+  function clearLkIdentity() { try { sessionStorage.removeItem("justus_lk_id"); } catch {} }
 
   // ── SDK loader ─────────────────────────────────────────────────────────────
   function loadLiveKitSDK(cb) {
     if (window.LivekitClient) { cb(); return; }
     const s = document.createElement("script");
     s.src = "https://cdn.jsdelivr.net/npm/livekit-client@2.6.0/dist/livekit-client.umd.min.js";
-    s.onload  = () => { if (window.LivekitClient) cb(); };
+    s.onload = () => { if (window.LivekitClient) cb(); };
     s.onerror = () => addEventLog("⚠️ Could not load video SDK", "System");
     (document.head || document.documentElement).appendChild(s);
   }
 
-  // ── body-level video element factory ──────────────────────────────────────
-  // These live in document.body so iOS WKWebView applies inline-playback policy.
-  function createBodyVideoEl(id, opts) {
-    let el = document.getElementById(id);
-    if (el) return el;
-    el = document.createElement("video");
-    el.id             = id;
-    el.muted          = true;
-    el.playsInline    = true;
-    el.controls       = false;
-    el.disablePictureInPicture = true;
-    el.setAttribute("playsinline", "");
-    el.setAttribute("webkit-playsinline", "");
-    el.setAttribute("x-webkit-airplay", "deny");
-    el.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback noplaybackrate novolume");
-    Object.assign(el.style, {
-      position      : "fixed",
-      zIndex        : opts.zIndex || "2147483640",
-      pointerEvents : "none",
-      objectFit     : "cover",
-      display       : "none",
-      background    : "#090A10",
-      borderRadius  : opts.borderRadius || "0",
-      border        : opts.border || "none",
-      boxSizing     : "border-box",
-    });
-    document.body.appendChild(el);
-    return el;
+  // ── PIP DOM builder ────────────────────────────────────────────────────────
+  // Everything here is a plain document.body element so iOS WKWebView inline-
+  // playback policy applies. All styles are inline to prevent page CSS bleed.
+  function buildPip() {
+    if (document.getElementById("justus-pip")) return; // already built
+
+    // ── container ────────────────────────────────────────────────────────────
+    const pip = document.createElement("div");
+    pip.id = "justus-pip";
+    pip.style.cssText = [
+      "position:fixed",
+      "bottom:80px",
+      "right:16px",
+      "width:240px",
+      "height:180px",
+      "min-width:160px",
+      "min-height:120px",
+      "background:#090a14",
+      "border-radius:16px",
+      "border:1.5px solid rgba(255,255,255,0.22)",
+      "box-shadow:0 12px 40px rgba(0,0,0,0.85)",
+      "z-index:2147483646",
+      "overflow:hidden",
+      "display:none",
+      "touch-action:none",
+      "user-select:none",
+      "-webkit-user-select:none",
+      "font-family:-apple-system,BlinkMacSystemFont,sans-serif",
+      "box-sizing:border-box",
+    ].join(";");
+
+    // ── remote video — fills entire pip ──────────────────────────────────────
+    const rv = document.createElement("video");
+    rv.id = "justus-rv";
+    rv.muted = true;
+    rv.playsInline = true;
+    rv.setAttribute("playsinline", "");
+    rv.setAttribute("webkit-playsinline", "");
+    rv.setAttribute("x-webkit-airplay", "deny");
+    rv.setAttribute("disablepictureinpicture", "");
+    rv.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback");
+    rv.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:#090a14;";
+    pip.appendChild(rv);
+
+    // ── local camera preview — small, top-left ────────────────────────────────
+    const lv = document.createElement("video");
+    lv.id = "justus-lv";
+    lv.muted = true;
+    lv.playsInline = true;
+    lv.setAttribute("playsinline", "");
+    lv.setAttribute("webkit-playsinline", "");
+    lv.setAttribute("x-webkit-airplay", "deny");
+    lv.setAttribute("disablepictureinpicture", "");
+    lv.setAttribute("controlslist", "nodownload nofullscreen noremoteplayback");
+    lv.style.cssText = "position:absolute;top:8px;left:8px;width:64px;height:48px;object-fit:cover;border-radius:8px;border:1.5px solid rgba(255,255,255,0.55);background:#1a1c2a;display:none;z-index:2;";
+    pip.appendChild(lv);
+
+    // ── waiting overlay ───────────────────────────────────────────────────────
+    const wait = document.createElement("div");
+    wait.id = "justus-pip-wait";
+    wait.style.cssText = "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#0d0f1a;z-index:1;pointer-events:none;";
+    wait.innerHTML = `
+      <div style="width:10px;height:10px;border-radius:50%;background:#6366f1;"></div>
+      <span id="justus-pip-status" style="color:#94a3b8;font-size:11px;font-weight:600;text-align:center;padding:0 12px;">Connecting…</span>
+    `;
+    pip.appendChild(wait);
+
+    // ── controls overlay (tap to reveal) ──────────────────────────────────────
+    const ctrl = document.createElement("div");
+    ctrl.id = "justus-pip-ctrl";
+    ctrl.style.cssText = "position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:6px;z-index:3;opacity:0;pointer-events:none;transition:opacity 0.2s;background:linear-gradient(to bottom,rgba(0,0,0,0.65) 0%,transparent 40%,transparent 55%,rgba(0,0,0,0.85) 100%);";
+    ctrl.innerHTML = `
+      <button id="justus-btn-close" style="align-self:flex-end;width:26px;height:26px;border-radius:13px;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0;">✕</button>
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:4px 8px;background:rgba(8,10,20,0.92);border:1px solid rgba(255,255,255,0.15);border-radius:20px;">
+        <button id="justus-btn-mic" style="width:32px;height:32px;border-radius:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0;" title="Mic">🎙</button>
+        <button id="justus-btn-cam" style="width:32px;height:32px;border-radius:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0;" title="Cam">📷</button>
+        <button id="justus-btn-flip" style="width:32px;height:32px;border-radius:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0;" title="Flip">🔄</button>
+        <button id="justus-btn-end" style="width:32px;height:32px;border-radius:16px;background:#7f1d1d;border:1px solid rgba(239,68,68,0.4);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0;" title="End">📵</button>
+      </div>
+    `;
+    pip.appendChild(ctrl);
+
+    document.body.appendChild(pip);
+
+    pipContainer   = pip;
+    pipRemoteVideo = rv;
+    pipLocalVideo  = lv;
+    pipWaitOverlay = wait;
+    pipCtrlOverlay = ctrl;
+    pipStatusText  = wait.querySelector("#justus-pip-status");
+
+    setupPipInteractions(pip, ctrl);
   }
 
-  function ensureBodyVideos() {
-    if (!bodyRemoteVideo) {
-      bodyRemoteVideo = createBodyVideoEl("justus-remote-video", {
-        zIndex: "2147483640",
-        borderRadius: "18px",
-      });
-    }
-    if (!bodyLocalVideo) {
-      bodyLocalVideo = createBodyVideoEl("justus-local-video", {
-        zIndex: "2147483641",
-        borderRadius: "10px",
-        border: "1.5px solid rgba(255,255,255,0.6)",
-      });
-    }
-  }
+  // ── PIP drag + tap-to-reveal controls ─────────────────────────────────────
+  function setupPipInteractions(pip, ctrl) {
+    let dragStartX = 0, dragStartY = 0;
+    let pipStartX = 0, pipStartY = 0;
+    let dragging = false, moved = false;
+    const DRAG_THRESHOLD = 8;
 
-  // ── position sync ──────────────────────────────────────────────────────────
-  // Called after drag / resize / show-window so body videos stay aligned
-  // with the Shadow DOM video canvas.
-  function syncVideoElements() {
-    const canvas = shadow.getElementById("ju-video-canvas");
-    if (!canvas) return;
-    const r = canvas.getBoundingClientRect();
-    const hidden = videoWindow.classList.contains("hidden");
+    function getPoint(e) {
+      return e.touches ? e.touches[0] : e;
+    }
 
-    if (bodyRemoteVideo) {
-      if (hidden) {
-        bodyRemoteVideo.style.display = "none";
-      } else {
-        bodyRemoteVideo.style.left   = r.left + "px";
-        bodyRemoteVideo.style.top    = r.top + "px";
-        bodyRemoteVideo.style.width  = r.width + "px";
-        bodyRemoteVideo.style.height = r.height + "px";
-        if (bodyRemoteVideo.srcObject) bodyRemoteVideo.style.display = "block";
+    function onStart(e) {
+      if (e.target.closest("button")) return;
+      const pt = getPoint(e);
+      dragStartX = pt.clientX;
+      dragStartY = pt.clientY;
+      const r = pip.getBoundingClientRect();
+      pipStartX = r.left;
+      pipStartY = r.top;
+      dragging = true;
+      moved = false;
+      try { e.preventDefault(); } catch {}
+    }
+
+    function onMove(e) {
+      if (!dragging) return;
+      const pt = getPoint(e);
+      const dx = pt.clientX - dragStartX;
+      const dy = pt.clientY - dragStartY;
+      if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) moved = true;
+      if (moved) {
+        const W = pip.offsetWidth, H = pip.offsetHeight;
+        const newX = Math.max(4, Math.min(window.innerWidth - W - 4, pipStartX + dx));
+        const newY = Math.max(4, Math.min(window.innerHeight - H - 4, pipStartY + dy));
+        pip.style.right  = "auto";
+        pip.style.bottom = "auto";
+        pip.style.left   = newX + "px";
+        pip.style.top    = newY + "px";
+        try { e.preventDefault(); } catch {}
       }
     }
 
-    if (bodyLocalVideo) {
-      if (hidden || !isCamEnabled) {
-        bodyLocalVideo.style.display = "none";
-      } else {
-        bodyLocalVideo.style.left   = (r.left + 8) + "px";
-        bodyLocalVideo.style.top    = (r.top + 8) + "px";
-        bodyLocalVideo.style.width  = "60px";
-        bodyLocalVideo.style.height = "45px";
-        if (bodyLocalVideo.srcObject) bodyLocalVideo.style.display = "block";
-      }
+    function onEnd(e) {
+      if (!dragging) return;
+      dragging = false;
+      if (!moved) togglePipControls();
+      try { e.preventDefault(); } catch {}
     }
+
+    // Touch (iOS primary path)
+    pip.addEventListener("touchstart", onStart, { passive: false });
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onEnd, { passive: false });
+
+    // Pointer (desktop fallback)
+    pip.addEventListener("pointerdown", onStart);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd);
+
+    // Controls: prevent touch from bubbling to drag handler
+    ctrl.addEventListener("touchstart", (e) => e.stopPropagation(), { passive: true });
+
+    // Buttons
+    function pipBtn(id, fn) {
+      const btn = pip.querySelector("#" + id);
+      if (!btn) return;
+      btn.addEventListener("touchstart", (e) => { e.stopPropagation(); e.preventDefault(); fn(); schedulePipControlsHide(); }, { passive: false });
+      btn.addEventListener("click", (e) => { e.stopPropagation(); fn(); schedulePipControlsHide(); });
+    }
+
+    pipBtn("justus-btn-close", () => { pipContainer.style.display = "none"; });
+    pipBtn("justus-btn-end",   () => { leaveLiveKitCall(); });
+    pipBtn("justus-btn-mic",   () => { toggleMic(); });
+    pipBtn("justus-btn-cam",   () => { toggleCam(); });
+    pipBtn("justus-btn-flip",  () => { flipCamera(); });
   }
 
-  // ── video playback helper ──────────────────────────────────────────────────
-  // Matches LiveKit's own Safari workaround from Track.ts:
-  //   - No autoplay attribute
-  //   - srcObject set twice (second in setTimeout) to force WebKit repaint
-  //   - play() called once, inside the timeout
-  function setSrcAndPlay(videoEl, mediaStream) {
-    if (!videoEl || !mediaStream) return;
-    // First assignment (Safari sometimes needs both)
-    videoEl.srcObject = mediaStream;
+  function togglePipControls() {
+    if (!pipCtrlOverlay) return;
+    const visible = pipCtrlOverlay.style.opacity === "1";
+    pipCtrlOverlay.style.opacity = visible ? "0" : "1";
+    pipCtrlOverlay.style.pointerEvents = visible ? "none" : "auto";
+    if (!visible) schedulePipControlsHide();
+  }
+
+  function schedulePipControlsHide() {
+    clearTimeout(ctrlHideTimer);
+    ctrlHideTimer = setTimeout(() => {
+      if (pipCtrlOverlay) { pipCtrlOverlay.style.opacity = "0"; pipCtrlOverlay.style.pointerEvents = "none"; }
+    }, 4000);
+  }
+
+  // ── play video helper ──────────────────────────────────────────────────────
+  // Mirrors LiveKit's own Safari workaround in Track.ts:
+  //   - No `autoplay` attribute (iOS low-power mode shows pause overlay)
+  //   - srcObject assigned twice with setTimeout(0) to force WebKit repaint
+  //   - play() called exactly once, inside the timeout
+  function setVideoSrc(videoEl, stream) {
+    if (!videoEl || !stream) return;
+    videoEl.srcObject = stream;
     setTimeout(() => {
-      videoEl.srcObject = mediaStream;    // forces WebKit re-render
-      videoEl.play().catch(() => {});
+      videoEl.srcObject = stream;
+      videoEl.play().catch((err) => {
+        // AbortError = a second play() raced us; ignore.
+        if (err?.name !== "AbortError") console.warn("[JustUS] play():", err);
+      });
     }, 0);
   }
 
-  // ── local preview ──────────────────────────────────────────────────────────
-  function showLocalPreview() {
-    if (!lkLocalVideoTrack || !isCamEnabled) return;
-    ensureBodyVideos();
-    const mst = lkLocalVideoTrack.mediaStreamTrack;
-    if (!mst) return;
-
-    const existing = bodyLocalVideo.srcObject instanceof MediaStream
-      ? bodyLocalVideo.srcObject.getVideoTracks()[0]
-      : null;
-
-    if (existing !== mst) {
-      setSrcAndPlay(bodyLocalVideo, new MediaStream([mst]));
-    } else if (bodyLocalVideo.paused) {
-      bodyLocalVideo.play().catch(() => {});
+  // ── local camera via getUserMedia (bypasses LiveKit camera management) ─────
+  async function startLocalCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      addEventLog("⚠️ getUserMedia not available", "System");
+      return;
     }
-    syncVideoElements();
+    try {
+      if (localCameraStream) {
+        // Reuse existing tracks if still live
+        const tracks = localCameraStream.getVideoTracks();
+        if (tracks.length && tracks[0].readyState === "live") {
+          tracks[0].enabled = isCamEnabled;
+          if (isCamEnabled && pipLocalVideo) {
+            setVideoSrc(pipLocalVideo, localCameraStream);
+            pipLocalVideo.style.display = "block";
+          }
+          return;
+        }
+      }
+
+      localCameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode  : { ideal: currentFacingMode },
+          width       : { ideal: 480 },
+          height      : { ideal: 360 },
+          frameRate   : { ideal: 24 },
+        },
+        audio: false,
+      });
+
+      if (pipLocalVideo) {
+        setVideoSrc(pipLocalVideo, localCameraStream);
+        pipLocalVideo.style.display = isCamEnabled ? "block" : "none";
+      }
+
+      // Publish the raw track to LiveKit so the remote sees it
+      if (livekitRoom?.state === "connected") {
+        await publishCameraTrack(localCameraStream.getVideoTracks()[0]);
+      }
+    } catch (err) {
+      console.warn("[JustUS] Camera:", err);
+      addEventLog("⚠️ Camera — " + (err.message || err.name), "System");
+    }
   }
 
-  function hideLocalPreview() {
-    if (bodyLocalVideo) bodyLocalVideo.style.display = "none";
-  }
-
-  // ── remote video ───────────────────────────────────────────────────────────
-  function showRemoteVideo(track) {
-    if (!track) return;
-    ensureBodyVideos();
-    const mst = track.mediaStreamTrack;
-    if (!mst) return;
-
-    const existing = bodyRemoteVideo.srcObject instanceof MediaStream
-      ? bodyRemoteVideo.srcObject.getVideoTracks()[0]
-      : null;
-
-    if (existing !== mst) {
-      setSrcAndPlay(bodyRemoteVideo, new MediaStream([mst]));
-    } else if (bodyRemoteVideo.paused) {
-      bodyRemoteVideo.play().catch(() => {});
+  async function publishCameraTrack(rawTrack) {
+    if (!rawTrack || !livekitRoom) return;
+    const LK = window.LivekitClient;
+    try {
+      // Unpublish any existing camera track first
+      if (lkLocalVideoTrack) {
+        try { await livekitRoom.localParticipant.unpublishTrack(lkLocalVideoTrack); } catch {}
+        lkLocalVideoTrack = null;
+      }
+      lkLocalVideoTrack = new LK.LocalVideoTrack(rawTrack, undefined, false);
+      await livekitRoom.localParticipant.publishTrack(lkLocalVideoTrack, {
+        videoCodec: "vp8",
+        simulcast : false,
+      });
+    } catch (err) {
+      console.warn("[JustUS] publishCamera:", err);
     }
-    syncVideoElements();
-
-    const waiting = shadow.getElementById("ju-video-waiting");
-    if (waiting) waiting.classList.add("hidden");
   }
 
   // ── token fetch ────────────────────────────────────────────────────────────
-  async function fetchLkToken(roomName, identity, userName, host) {
+  async function fetchLkToken(roomName, identity) {
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const res = await fetch(`${API_BASE}/api/livekit/token`, {
-          method: "POST",
+          method : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ roomName, identity, name: userName, isHost: !!host }),
+          body   : JSON.stringify({ roomName, identity, name: currentUserName, isHost: !!isHost }),
         });
         if (res.ok) {
           const d = await res.json();
           if (d.token) return { token: d.token, wsUrl: d.wsUrl || "" };
         }
       } catch {}
-      if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 700));
+      if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 800));
     }
     return null;
   }
 
   // ── connect ────────────────────────────────────────────────────────────────
-  async function connectLiveKitCall(isReconnect) {
+  async function connectLiveKitCall() {
     if (!activeRoomId || isLkConnecting) return;
-    if (livekitRoom && livekitRoom.state === "connected") return;
+    if (livekitRoom?.state === "connected") return;
 
     isLkConnecting = true;
-    userHungUp     = false;
+    userHungUp = false;
+    buildPip();
 
-    ensureBodyVideos();
-    const waitEl = shadow.getElementById("ju-waiting-text");
-    if (waitEl) waitEl.textContent = "Connecting video call…";
+    if (pipStatusText) pipStatusText.textContent = "Connecting…";
 
     loadLiveKitSDK(async () => {
       try {
-        const LK       = window.LivekitClient;
-        const identity = getLkIdentity();
-        const td       = await fetchLkToken(activeRoomId, identity, currentUserName, isHost);
+        const LK = window.LivekitClient;
+        const td = await fetchLkToken(activeRoomId, getLkIdentity());
         if (!td) throw new Error("Could not get video call token");
 
         const room = new LK.Room({
           adaptiveStream : false,
           dynacast       : false,
           publishDefaults: { simulcast: false, videoCodec: "vp8" },
-          videoCaptureDefaults: {
-            resolution: { width: 480, height: 360, frameRate: 24 },
-            facingMode: currentFacingMode,
-          },
         });
         livekitRoom = room;
 
-        // ── remote track arrives ─────────────────────────────────────────────
+        // Remote video ── use srcObject, not track.attach() on our element
         room.on(LK.RoomEvent.TrackSubscribed, (track) => {
-          if (track.kind === LK.Track.Kind.Video) {
-            showRemoteVideo(track);
+          if (track.kind === LK.Track.Kind.Video && pipRemoteVideo) {
+            setVideoSrc(pipRemoteVideo, new MediaStream([track.mediaStreamTrack]));
+            if (pipWaitOverlay) pipWaitOverlay.style.display = "none";
           }
           if (track.kind === LK.Track.Kind.Audio) {
-            if (remoteAudioEl) {
-              try { remoteAudioEl.remove(); } catch {}
-            }
-            // Audio element goes in document.body (not Shadow DOM) for
-            // proper iOS AVAudioSession routing to the speaker.
-            remoteAudioEl = track.attach();
+            if (remoteAudioEl) { try { remoteAudioEl.remove(); } catch {} }
+            remoteAudioEl = track.attach(); // creates an <audio> element
             remoteAudioEl.volume = 1.0;
-            document.body.appendChild(remoteAudioEl);
+            document.body.appendChild(remoteAudioEl); // MUST be in body, not Shadow DOM
           }
         });
 
         room.on(LK.RoomEvent.TrackUnsubscribed, (track) => {
           if (track.kind === LK.Track.Kind.Video) {
-            if (bodyRemoteVideo) {
-              bodyRemoteVideo.style.display = "none";
-              bodyRemoteVideo.srcObject = null;
-            }
-            const waiting = shadow.getElementById("ju-video-waiting");
-            if (waiting) waiting.classList.remove("hidden");
+            if (pipRemoteVideo) pipRemoteVideo.srcObject = null;
+            if (pipWaitOverlay) pipWaitOverlay.style.display = "flex";
           }
           try { track.detach(); } catch {}
         });
 
         room.on(LK.RoomEvent.ParticipantDisconnected, () => {
-          if (bodyRemoteVideo) {
-            bodyRemoteVideo.style.display = "none";
-            bodyRemoteVideo.srcObject = null;
-          }
-          const waiting = shadow.getElementById("ju-video-waiting");
-          if (waiting) {
-            waiting.classList.remove("hidden");
-            const wt = shadow.getElementById("ju-waiting-text");
-            if (wt) wt.textContent = "Friend left call";
-          }
+          if (pipRemoteVideo) pipRemoteVideo.srcObject = null;
+          if (pipWaitOverlay) { pipWaitOverlay.style.display = "flex"; }
+          if (pipStatusText) pipStatusText.textContent = "Friend left call";
         });
 
-        // iOS: WebKit pauses video in background; room.startVideo() resumes.
+        // iOS: WebKit pauses videos when app backgrounds; resume them
         room.on(LK.RoomEvent.VideoPlaybackStatusChanged, () => {
           if (!room.canPlaybackVideo) room.startVideo().catch(() => {});
         });
 
         room.on(LK.RoomEvent.Disconnected, onLkDisconnected);
 
-        // ── connect ──────────────────────────────────────────────────────────
         await room.connect(td.wsUrl, td.token);
         isVideoCallActive = true;
         updateVideoPillState();
 
-        // ── publish microphone first (iOS audio session needs this) ──────────
+        // Mic — let LiveKit manage this (it needs to handle the audio session)
         if (isMicEnabled) {
           try {
             await room.localParticipant.setMicrophoneEnabled(true);
             const pub = room.localParticipant.getTrackPublication(LK.Track.Source.Microphone);
             if (pub?.track) {
               lkLocalAudioTrack = pub.track;
-              if (lkLocalAudioTrack.mediaStreamTrack) {
-                lkLocalAudioTrack.mediaStreamTrack.enabled = true;
-              }
+              lkLocalAudioTrack.mediaStreamTrack.enabled = true;
             }
           } catch (e) { console.warn("[JustUS] Mic:", e); }
         }
 
-        // ── publish camera ───────────────────────────────────────────────────
-        if (isCamEnabled) {
-          try {
-            await room.localParticipant.setCameraEnabled(true);
-            const pub = room.localParticipant.getTrackPublication(LK.Track.Source.Camera);
-            if (pub?.track) {
-              lkLocalVideoTrack = pub.track;
-              showLocalPreview();
-            }
-          } catch (e) {
-            console.warn("[JustUS] Camera:", e);
-            addEventLog("⚠️ Camera unavailable — check app permissions", "System");
-          }
-        }
+        // Camera — getUserMedia directly (NOT setCameraEnabled)
+        if (isCamEnabled) await startLocalCamera();
 
-        // ── pick up remote tracks already in room ────────────────────────────
+        // Pick up tracks already in room
         room.remoteParticipants.forEach((p) => {
           p.videoTrackPublications.forEach((pub) => {
-            if (pub.track && pub.isSubscribed) showRemoteVideo(pub.track);
-          });
-          p.audioTrackPublications.forEach((pub) => {
-            if (pub.track && pub.isSubscribed && !remoteAudioEl) {
-              remoteAudioEl = pub.track.attach();
-              remoteAudioEl.volume = 1.0;
-              document.body.appendChild(remoteAudioEl);
+            if (pub.track && pub.isSubscribed && pipRemoteVideo) {
+              setVideoSrc(pipRemoteVideo, new MediaStream([pub.track.mediaStreamTrack]));
+              if (pipWaitOverlay) pipWaitOverlay.style.display = "none";
             }
           });
         });
 
-        if (waitEl) waitEl.textContent = "Waiting for friend to join…";
+        if (pipStatusText) pipStatusText.textContent = "Waiting for friend…";
       } catch (err) {
         console.error("[JustUS] LiveKit:", err);
-        const wt = shadow.getElementById("ju-waiting-text");
-        if (wt) wt.textContent = `Error: ${err.message || "Connection failed"}`;
+        if (pipStatusText) pipStatusText.textContent = "Error: " + (err.message || "failed");
       } finally {
         isLkConnecting = false;
       }
@@ -1665,61 +1297,47 @@
 
   // ── disconnect ─────────────────────────────────────────────────────────────
   function onLkDisconnected() {
-    livekitRoom       = null;
+    livekitRoom = null;
     isVideoCallActive = false;
-    isLkConnecting    = false;
-
-    if (remoteAudioEl) {
-      try { remoteAudioEl.remove(); } catch {}
-      remoteAudioEl = null;
-    }
+    isLkConnecting = false;
+    if (remoteAudioEl) { try { remoteAudioEl.remove(); } catch {} remoteAudioEl = null; }
     updateVideoPillState();
-
     if (!userHungUp && activeRoomId) {
       clearTimeout(reconnectTimer);
       reconnectTimer = setTimeout(() => {
-        if (!userHungUp && activeRoomId && !livekitRoom) connectLiveKitCall(true);
+        if (!userHungUp && activeRoomId && !livekitRoom) connectLiveKitCall();
       }, 2500);
     }
   }
 
   // ── hang up ────────────────────────────────────────────────────────────────
   function leaveLiveKitCall() {
-    userHungUp        = true;
+    userHungUp = true;
     autoCallScheduled = false;
     clearTimeout(reconnectTimer);
     clearLkIdentity();
 
-    if (lkLocalVideoTrack) {
-      try { lkLocalVideoTrack.stop(); } catch {}
-      lkLocalVideoTrack = null;
+    // Stop camera hardware (safe to stop on hangup — not toggling)
+    if (localCameraStream) {
+      localCameraStream.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+      localCameraStream = null;
     }
+    lkLocalVideoTrack = null;
+
     if (lkLocalAudioTrack) {
       try { lkLocalAudioTrack.stop(); } catch {}
       lkLocalAudioTrack = null;
     }
-    if (remoteAudioEl) {
-      try { remoteAudioEl.remove(); } catch {}
-      remoteAudioEl = null;
-    }
+    if (remoteAudioEl) { try { remoteAudioEl.remove(); } catch {} remoteAudioEl = null; }
 
-    // Clear body videos
-    if (bodyRemoteVideo) {
-      bodyRemoteVideo.style.display = "none";
-      bodyRemoteVideo.srcObject = null;
-    }
-    if (bodyLocalVideo) {
-      bodyLocalVideo.style.display = "none";
-      bodyLocalVideo.srcObject = null;
-    }
+    if (pipRemoteVideo) pipRemoteVideo.srcObject = null;
+    if (pipLocalVideo)  { pipLocalVideo.srcObject = null; pipLocalVideo.style.display = "none"; }
+    if (pipWaitOverlay) { pipWaitOverlay.style.display = "flex"; }
+    if (pipStatusText)  { pipStatusText.textContent = "Call ended"; }
+    if (pipContainer)   { pipContainer.style.display = "none"; }
 
-    const waiting = shadow.getElementById("ju-video-waiting");
-    if (waiting) waiting.classList.remove("hidden");
+    if (livekitRoom) { try { livekitRoom.disconnect(true); } catch {} livekitRoom = null; }
 
-    if (livekitRoom) {
-      try { livekitRoom.disconnect(true); } catch {}
-      livekitRoom = null;
-    }
     isVideoCallActive = false;
     updateVideoPillState();
   }
@@ -1727,14 +1345,13 @@
   // ── mic toggle ─────────────────────────────────────────────────────────────
   async function toggleMic() {
     isMicEnabled = !isMicEnabled;
-    const btn = shadow.getElementById("ju-btn-mic");
-    if (btn) btn.classList.toggle("off", !isMicEnabled);
+    const btn = pipContainer?.querySelector("#justus-btn-mic");
+    if (btn) btn.style.opacity = isMicEnabled ? "1" : "0.35";
 
-    // Hardware mute first — instant, no server round-trip
+    // Hardware mute first — no server round-trip latency
     if (lkLocalAudioTrack?.mediaStreamTrack) {
       lkLocalAudioTrack.mediaStreamTrack.enabled = isMicEnabled;
     }
-
     if (livekitRoom?.state === "connected") {
       try {
         await livekitRoom.localParticipant.setMicrophoneEnabled(isMicEnabled);
@@ -1752,77 +1369,55 @@
   // ── camera toggle ──────────────────────────────────────────────────────────
   async function toggleCam() {
     isCamEnabled = !isCamEnabled;
-    const btn = shadow.getElementById("ju-btn-cam");
-    if (btn) btn.classList.toggle("off", !isCamEnabled);
+    const btn = pipContainer?.querySelector("#justus-btn-cam");
+    if (btn) btn.style.opacity = isCamEnabled ? "1" : "0.35";
 
-    // Disable/enable the track at hardware level immediately
+    if (localCameraStream) {
+      localCameraStream.getVideoTracks().forEach((t) => { t.enabled = isCamEnabled; });
+    }
     if (lkLocalVideoTrack?.mediaStreamTrack) {
       lkLocalVideoTrack.mediaStreamTrack.enabled = isCamEnabled;
     }
 
-    if (isCamEnabled) {
-      showLocalPreview();
-    } else {
-      hideLocalPreview();
-    }
-
-    if (livekitRoom?.state === "connected") {
-      try {
-        await livekitRoom.localParticipant.setCameraEnabled(isCamEnabled);
-        const pub = livekitRoom.localParticipant.getTrackPublication(
-          window.LivekitClient.Track.Source.Camera
-        );
-        if (pub?.track) {
-          lkLocalVideoTrack = pub.track;
-          lkLocalVideoTrack.mediaStreamTrack.enabled = isCamEnabled;
-          if (isCamEnabled) showLocalPreview();
-        }
-      } catch {}
-    }
+    if (pipLocalVideo) pipLocalVideo.style.display = isCamEnabled ? "block" : "none";
   }
 
   // ── flip camera ────────────────────────────────────────────────────────────
   async function flipCamera() {
-    if (!livekitRoom || livekitRoom.state !== "connected") return;
     currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
-    try {
-      await livekitRoom.localParticipant.setCameraEnabled(false);
-      await livekitRoom.localParticipant.setCameraEnabled(true, {
-        facingMode: currentFacingMode,
-        resolution: { width: 480, height: 360, frameRate: 24 },
-      });
-      const pub = livekitRoom.localParticipant.getTrackPublication(
-        window.LivekitClient.Track.Source.Camera
-      );
-      if (pub?.track) {
-        lkLocalVideoTrack = pub.track;
-        showLocalPreview();
-      }
-    } catch (e) { console.warn("[JustUS] Flip:", e); }
+    // Stop existing stream before re-acquiring
+    if (localCameraStream) {
+      localCameraStream.getVideoTracks().forEach((t) => { try { t.stop(); } catch {} });
+      localCameraStream = null;
+    }
+    if (pipLocalVideo) { pipLocalVideo.srcObject = null; pipLocalVideo.style.display = "none"; }
+    await startLocalCamera();
   }
 
-  // ── show / hide the PIP window ─────────────────────────────────────────────
+  // ── show / hide PIP ────────────────────────────────────────────────────────
   function toggleVideoCallWindow() {
     if (!activeRoomId) {
       addEventLog("⚠️ Join or create a watch party first", "System");
       toggleDrawer();
       return;
     }
-    if (videoWindow.classList.contains("hidden")) {
-      videoWindow.classList.remove("hidden");
-      syncVideoElements();
-      if (!livekitRoom && !isLkConnecting) connectLiveKitCall(false);
+    buildPip();
+    const pip = pipContainer;
+    if (!pip) return;
+
+    if (pip.style.display === "none" || !pip.style.display) {
+      pip.style.display = "block";
+      if (!livekitRoom && !isLkConnecting) connectLiveKitCall();
     } else {
-      videoWindow.classList.add("hidden");
-      syncVideoElements();
+      pip.style.display = "none";
     }
   }
 
   // ── pill / drawer state ────────────────────────────────────────────────────
   function updateVideoPillState() {
-    const dot      = shadow.getElementById("ju-video-dot");
-    const pillText = shadow.getElementById("ju-video-pill-text");
-    const pill     = shadow.getElementById("ju-video-pill");
+    const dot  = shadow.getElementById("ju-video-dot");
+    const text = shadow.getElementById("ju-video-pill-text");
+    const pill = shadow.getElementById("ju-video-pill");
     if (!pill) return;
 
     if (!activeRoomId) { pill.classList.add("hidden"); return; }
@@ -1831,19 +1426,17 @@
     if (isVideoCallActive) {
       if (dot) dot.className = "status-dot active";
       pill.classList.add("active");
-      if (pillText) pillText.textContent = "📹 In Call";
+      if (text) text.textContent = "📹 In Call";
     } else {
       if (dot) dot.className = "status-dot idle";
       pill.classList.remove("active");
-      if (pillText) pillText.textContent = "📹 Video Call";
+      if (text) text.textContent = "📹 Video Call";
     }
 
     const drawerBtn = shadow.getElementById("ju-drawer-video-btn");
     if (drawerBtn) {
       drawerBtn.className = `action-btn ${isVideoCallActive ? "emerald" : "indigo"}`;
-      drawerBtn.textContent = isVideoCallActive
-        ? "📹 Open Video PIP Window"
-        : "📹 Start / Join Video Call";
+      drawerBtn.textContent = isVideoCallActive ? "📹 Open Video PIP" : "📹 Start / Join Video Call";
     }
   }
 
@@ -1853,11 +1446,7 @@
     autoCallScheduled = true;
     setTimeout(() => {
       if (!activeRoomId || isVideoCallActive || isLkConnecting) return;
-      if (videoWindow.classList.contains("hidden")) {
-        toggleVideoCallWindow();
-      } else if (!livekitRoom) {
-        connectLiveKitCall(false);
-      }
+      toggleVideoCallWindow();
     }, 800);
   }
   // ─────────────────────────────────────────────────────────────────
