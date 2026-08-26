@@ -662,15 +662,16 @@
       position: absolute;
       bottom: 0;
       right: 0;
-      width: 18px;
-      height: 18px;
+      width: 32px !important;
+      height: 32px !important;
       cursor: nwse-resize;
       display: flex;
       align-items: flex-end;
       justify-content: flex-end;
-      padding: 2px;
+      padding: 6px;
       touch-action: none;
-      z-index: 5;
+      z-index: 20 !important;
+      pointer-events: auto !important;
     }
 
     .drawer-overlay {
@@ -1195,7 +1196,13 @@
   let startWinWidth = 0, startWinHeight = 0;
 
   function onWindowResizeStart(e) {
-    e.stopPropagation();
+    if (e) {
+      try {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      } catch (err) {}
+    }
     isResizingWindow = true;
     const touch = e.touches ? e.touches[0] : e;
     resizeStartX = touch.clientX;
@@ -1206,7 +1213,11 @@
 
   function onWindowResizeMove(e) {
     if (!isResizingWindow) return;
+    if (e) {
+      try { e.preventDefault(); } catch (err) {}
+    }
     const touch = e.touches ? e.touches[0] : e;
+    if (!touch || typeof touch.clientX !== "number") return;
     const deltaX = touch.clientX - resizeStartX;
     const deltaY = touch.clientY - resizeStartY;
 
@@ -1214,8 +1225,8 @@
     const maxWidth = window.innerWidth - rect.left - 10;
     const maxHeight = window.innerHeight - rect.top - 10;
 
-    const newWidth = Math.max(150, Math.min(maxWidth, startWinWidth + deltaX));
-    const newHeight = Math.max(110, Math.min(maxHeight, startWinHeight + deltaY));
+    const newWidth = Math.max(160, Math.min(maxWidth, startWinWidth + deltaX));
+    const newHeight = Math.max(120, Math.min(maxHeight, startWinHeight + deltaY));
 
     videoWindow.style.width = `${newWidth}px`;
     videoWindow.style.height = `${newHeight}px`;
@@ -1226,8 +1237,11 @@
   }
 
   resizeHandle.addEventListener("pointerdown", onWindowResizeStart);
+  resizeHandle.addEventListener("touchstart", onWindowResizeStart, { passive: false });
   window.addEventListener("pointermove", onWindowResizeMove);
+  window.addEventListener("touchmove", onWindowResizeMove, { passive: false });
   window.addEventListener("pointerup", onWindowResizeEnd);
+  window.addEventListener("touchend", onWindowResizeEnd);
 
   // Helper to reliably attach click & touch events with instant touch response
   function setupControlButton(id, callback) {
@@ -1460,11 +1474,11 @@
           console.warn("[JustUS] Microphone setup notice:", e);
         }
 
-        // 2. Front/User Camera track (lightweight 384x216 15fps for silky iPad performance)
+        // 2. Front/User Camera track (Crisp 480x360 @ 24fps)
         try {
           localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
             facingMode: currentFacingMode || "user",
-            resolution: window.LivekitClient.VideoPresets?.h216?.resolution || { width: 384, height: 216, frameRate: 15 },
+            resolution: { width: 480, height: 360, frameRate: 24 },
           });
           const localVideoEl = shadow.getElementById("ju-local-video");
           if (localVideoEl && localVideoTrack) {
@@ -1476,10 +1490,7 @@
             localVideoEl.play().catch(() => {});
           }
           if (localVideoTrack) {
-            await room.localParticipant.publishTrack(localVideoTrack, {
-              simulcast: false,
-              videoCodec: "vp8",
-            });
+            await room.localParticipant.publishTrack(localVideoTrack);
           }
         } catch (e) {
           console.warn("[JustUS] Camera setup notice:", e);
@@ -1577,7 +1588,7 @@
       try {
         localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
           facingMode: currentFacingMode || "user",
-          resolution: window.LivekitClient.VideoPresets?.h216?.resolution || { width: 384, height: 216, frameRate: 15 },
+          resolution: { width: 480, height: 360, frameRate: 24 },
         });
         if (localVideoEl && localVideoTrack) {
           localVideoEl.muted = true;
@@ -1588,10 +1599,7 @@
           localVideoEl.play().catch(() => {});
         }
         if (localVideoTrack) {
-          await livekitRoom.localParticipant.publishTrack(localVideoTrack, {
-            simulcast: false,
-            videoCodec: "vp8",
-          });
+          await livekitRoom.localParticipant.publishTrack(localVideoTrack);
         }
       } catch (e) {}
     }
@@ -1613,7 +1621,7 @@
       try {
         localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
           facingMode: currentFacingMode,
-          resolution: window.LivekitClient.VideoPresets?.h216?.resolution || { width: 384, height: 216, frameRate: 15 },
+          resolution: { width: 480, height: 360, frameRate: 24 },
         });
         if (localVideoEl && localVideoTrack) {
           localVideoEl.muted = true;
@@ -1624,10 +1632,7 @@
           localVideoEl.play().catch(() => {});
         }
         if (localVideoTrack) {
-          await livekitRoom.localParticipant.publishTrack(localVideoTrack, {
-            simulcast: false,
-            videoCodec: "vp8",
-          });
+          await livekitRoom.localParticipant.publishTrack(localVideoTrack);
         }
       } catch (e) {}
     }
