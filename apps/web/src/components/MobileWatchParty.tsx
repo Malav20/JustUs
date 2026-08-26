@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
   Play,
@@ -66,6 +67,7 @@ export function MobileWatchParty() {
   const [pendingService, setPendingService] = useState<ServiceItem | null>(null);
   const [isConnectingModalOpen, setIsConnectingModalOpen] = useState(false);
   const [userName, setUserName] = useState<string>("iPad_User");
+  const searchParams = useSearchParams();
 
   // Connection State for Each Service (Persisted in localStorage)
   const [connectedServices, setConnectedServices] = useState<Record<string, boolean>>({
@@ -82,8 +84,13 @@ export function MobileWatchParty() {
         setConnectedServices(JSON.parse(saved));
       }
 
+      // A ?user= param (e.g. from a /join invite link) takes priority and is persisted.
+      const userParam = searchParams?.get("user")?.trim();
       const savedName = localStorage.getItem("justus_username");
-      if (savedName) {
+      if (userParam) {
+        setUserName(userParam);
+        localStorage.setItem("justus_username", userParam);
+      } else if (savedName) {
         setUserName(savedName);
       } else {
         const defaultName = "User_" + Math.floor(Math.random() * 1000);
@@ -104,7 +111,7 @@ export function MobileWatchParty() {
     } catch (e) {
       console.warn("Could not load state:", e);
     }
-  }, []);
+  }, [searchParams]);
 
   const handleNameChange = (val: string) => {
     setUserName(val);

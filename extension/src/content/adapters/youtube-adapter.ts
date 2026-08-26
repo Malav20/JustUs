@@ -144,10 +144,6 @@ export class YouTubeAdapter implements IPlayerAdapter {
     return Boolean(this.videoEl && !this.videoEl.paused && !this.videoEl.ended);
   }
 
-  getVideoElement(): HTMLVideoElement | null {
-    return this.videoEl;
-  }
-
   onStateChange(cb: (event: PlayerEventType, time: number) => void): void {
     this.listeners.push(cb);
   }
@@ -164,10 +160,6 @@ export class YouTubeAdapter implements IPlayerAdapter {
         this.videoEl.playbackRate = rate;
       } catch (e) {}
     }
-  }
-
-  getPlaybackRate(): number {
-    return this.videoEl?.playbackRate || 1.0;
   }
 
   destroy(): void {

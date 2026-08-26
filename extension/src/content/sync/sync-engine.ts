@@ -2,6 +2,14 @@ import { createClient, RealtimeChannel } from "@supabase/supabase-js";
 import { IPlayerAdapter, PlayerEventType } from "../adapters/base-adapter";
 import { CONFIG } from "../../shared/constants";
 import { ChatMessage, SyncPayload } from "../../shared/types";
+import {
+  SYNC,
+  clampLatencySeconds,
+  expectedRemoteTime,
+  computeHeartbeatCorrection,
+  playTargetTime,
+  shouldSeek,
+} from "../../shared/sync-core";
 
 function getSupabaseClient() {
   const url = CONFIG.SUPABASE_URL || "https://placeholder.supabase.co";
@@ -414,10 +422,8 @@ export class SyncEngine {
     this.setScreenWakeLock(true);
     if (this.onPlaybackAction) this.onPlaybackAction("play", payload.time, senderName);
     this.withSyncLock(async () => {
-      const latency = Math.max(0, (Date.now() - payload.sentAt) / 1000);
-      const targetTime = payload.time + (latency > 0 && latency < 1.5 ? latency : 0);
-
-      if (targetTime > 1.0 && Math.abs(this.adapter.getCurrentTime() - targetTime) > 0.35) {
+      const targetTime = playTargetTime(payload.time, payload.sentAt, Date.now());
+      if (shouldSeek(this.adapter.getCurrentTime(), targetTime)) {
         await this.adapter.seek(targetTime);
       }
       await this.adapter.play();
@@ -459,7 +465,7 @@ export class SyncEngine {
 
     // Grace window: If an explicit play/pause/seek occurred in the last 3.5s,
     // ignore passive heartbeat state to allow peers/local stream startup & buffering
-    if (Date.now() - this.lastUserActionTime < 3500) {
+    if (Date.now() - this.lastUserActionTime < SYNC.USER_ACTION_GRACE_MS) {
       return;
     }
 
@@ -475,11 +481,10 @@ export class SyncEngine {
       }
     }
 
-    const latency = Math.max(0, Math.min(0.4, (Date.now() - payload.sentAt) / 1000));
-    const expectedTime = payload.isPlaying ? payload.time + latency : payload.time;
-    const current = this.adapter.getCurrentTime();
-    const delta = expectedTime - current;
-    const drift = Math.abs(delta);
+    const now = Date.now();
+    const latency = clampLatencySeconds(payload.sentAt, now, SYNC.HEARTBEAT_MAX_LATENCY_S);
+    const expectedTime = expectedRemoteTime(payload.time, !!payload.isPlaying, latency);
+    const drift = Math.abs(expectedTime - this.adapter.getCurrentTime());
 
     if (this.onDriftUpdate) {
       this.onDriftUpdate(Math.round(drift * 1000));
@@ -490,7 +495,7 @@ export class SyncEngine {
       this.isInitialSyncCompleted = true;
       console.log(`[JustUS] Initial room state established: ${expectedTime.toFixed(2)}s (isPlaying: ${payload.isPlaying})`);
       this.withSyncLock(async () => {
-        if (expectedTime > 0.5) {
+        if (expectedTime > SYNC.MIN_MEANINGFUL_TIME_S) {
           await this.adapter.seek(expectedTime);
         }
         if (payload.isPlaying) {
@@ -502,36 +507,35 @@ export class SyncEngine {
       return;
     }
 
-    if (payload.isPlaying) {
-      if (!this.adapter.isPlaying()) {
-        this.withSyncLock(async () => { await this.adapter.play(); });
-      }
-      if (drift > 1.2 && expectedTime > 0.5) {
-        // Large drift: Hard seek
-        this.withSyncLock(async () => {
-          await this.adapter.seek(expectedTime);
-          this.adapter.setPlaybackRate(1.0);
-        });
-      } else if (delta > 0.15) {
-        // Viewer is slightly behind host: speed up gently without audio distortion
-        this.adapter.setPlaybackRate(1.04);
-      } else if (delta < -0.15) {
-        // Viewer is slightly ahead of host: slow down gently without audio distortion
-        this.adapter.setPlaybackRate(0.96);
-      } else {
-        // Frame-perfect sync (within 150ms deadband)
-        this.adapter.setPlaybackRate(1.0);
-      }
+    // Decide the correction purely (see sync-core), then apply it to the player.
+    const correction = computeHeartbeatCorrection({
+      currentTime: this.adapter.getCurrentTime(),
+      payloadTime: payload.time,
+      isPlaying: !!payload.isPlaying,
+      sentAt: payload.sentAt,
+      now,
+    });
+
+    if (correction.ensurePlaying && !this.adapter.isPlaying()) {
+      this.withSyncLock(async () => { await this.adapter.play(); });
+    }
+
+    if (correction.seekTo !== undefined) {
+      const target = correction.seekTo;
+      const rate = correction.playbackRate;
+      const ensurePaused = correction.ensurePaused;
+      this.withSyncLock(async () => {
+        await this.adapter.seek(target);
+        if (ensurePaused && this.adapter.isPlaying()) {
+          await this.adapter.pause();
+        }
+        if (rate !== undefined) this.adapter.setPlaybackRate(rate);
+      });
     } else {
-      this.adapter.setPlaybackRate(1.0);
-      if (drift > 0.2 && expectedTime > 0.5) {
-        this.withSyncLock(async () => {
-          await this.adapter.seek(expectedTime);
-          if (this.adapter.isPlaying()) {
-            await this.adapter.pause();
-          }
-        });
-      } else if (this.adapter.isPlaying()) {
+      if (correction.playbackRate !== undefined) {
+        this.adapter.setPlaybackRate(correction.playbackRate);
+      }
+      if (correction.ensurePaused && this.adapter.isPlaying()) {
         this.withSyncLock(async () => { await this.adapter.pause(); });
       }
     }
@@ -554,7 +558,7 @@ export class SyncEngine {
           sender: this.userName,
         },
       });
-    }, CONFIG.HEARTBEAT_INTERVAL_MS);
+    }, SYNC.HEARTBEAT_INTERVAL_MS);
   }
 
   public sendChatMessage(text: string) {
@@ -618,7 +622,7 @@ export class SyncEngine {
     } finally {
       setTimeout(() => {
         this.isSyncActionInProgress = false;
-      }, CONFIG.SYNC_ACTION_COOLDOWN_MS);
+      }, SYNC.SYNC_ACTION_COOLDOWN_MS);
     }
   }
 

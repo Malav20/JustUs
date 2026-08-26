@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin, supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase.server";
+import { corsHeaders, corsPreflight } from "@/lib/cors";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, PATCH, DELETE",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-};
-
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
-}
+export const OPTIONS = corsPreflight;
 
 function generateRoomCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -32,7 +26,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data, error } = await supabase
       .from("rooms")
-      .select("*, room_participants(*)")
+      .select("*")
       .eq("id", roomId)
       .single();
 
@@ -171,7 +165,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/rooms?id=xxx - Delete room and all associated messages/participants from DB when host leaves
+// DELETE /api/rooms?id=xxx - Delete room and its chat messages from DB when host leaves
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -182,13 +176,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Room ID is required" }, { status: 400, headers: corsHeaders });
     }
 
-    // Clean up chat messages, room participants, and the room itself
+    // Clean up chat messages and the room itself
     try {
       await supabaseAdmin.from("chat_messages").delete().eq("room_id", roomId);
-    } catch (e) {}
-
-    try {
-      await supabaseAdmin.from("room_participants").delete().eq("room_id", roomId);
     } catch (e) {}
 
     const { error } = await supabaseAdmin.from("rooms").delete().eq("id", roomId);

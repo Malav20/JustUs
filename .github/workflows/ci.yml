@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  extension:
+    name: Extension (typecheck + unit tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install extension dependencies
+        run: npm --prefix extension install
+      - name: Typecheck
+        run: npm --prefix extension run typecheck
+      - name: Unit tests (sync-core)
+        run: npm --prefix extension test
+
+  web:
+    name: Web (next build = typecheck + lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install web dependencies
+        run: npm --prefix apps/web install
+      - name: Build (runs TypeScript type-checking)
+        run: npm --prefix apps/web run build
+        env:
+          # Optional — the app falls back to placeholders when unset, so the
+          # build still type-checks on forks without secrets configured.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_LIVEKIT_URL: ${{ secrets.NEXT_PUBLIC_LIVEKIT_URL }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}

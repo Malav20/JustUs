@@ -123,20 +123,12 @@ export class NetflixAdapter implements IPlayerAdapter {
     return Boolean(this.videoEl && !this.videoEl.paused && !this.videoEl.ended);
   }
 
-  getVideoElement(): HTMLVideoElement | null {
-    return this.videoEl;
-  }
-
   onStateChange(cb: (event: PlayerEventType, time: number) => void): void {
     this.listeners.push(cb);
   }
 
   setPlaybackRate(rate: number): void {
     // Intentionally no-op on Netflix to protect Widevine DRM hardware decoding pipeline from black screen drops
-  }
-
-  getPlaybackRate(): number {
-    return this.videoEl?.playbackRate || 1.0;
   }
 
   destroy(): void {

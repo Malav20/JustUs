@@ -1,4 +1,4 @@
-export type StreamingService = "netflix" | "prime" | "generic";
+export type StreamingService = "netflix" | "prime" | "youtube" | "generic";
 
 export interface SyncPayload {
   time: number;
@@ -31,5 +31,4 @@ export type ExtensionMessage =
   | { type: "LEAVE_ROOM" }
   | { type: "GET_STATUS" }
   | { type: "SET_STATUS"; payload: Partial<RoomSession> }
-  | { type: "GET_LIVEKIT_TOKEN"; payload: { roomName: string; identity: string; isHost?: boolean } }
-  | { type: "TOGGLE_AV"; payload: { mic?: boolean; camera?: boolean } };
+  | { type: "GET_LIVEKIT_TOKEN"; payload: { roomName: string; identity: string; isHost?: boolean } };

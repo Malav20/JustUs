@@ -29,17 +29,3 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #3b4260;
 }
-
-/* GPU Hardware Composited Surface Utilities */
-.gpu-layer {
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-.composited-surface {
-  background-color: #12141F;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
-}

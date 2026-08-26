@@ -1,5 +1,10 @@
 // JustUS iOS / iPadOS Injected Watch Party Overlay
 // Provides Floating Party HUD, Cross-Platform Supabase Playback Sync, Event Logging & Chat
+//
+// NOTE: This is a standalone vanilla script injected into arbitrary streaming pages,
+// so it cannot import from the app bundle. Its playback-sync thresholds/timings are
+// intentionally kept in lock-step with the canonical extension/src/shared/sync-core.ts
+// (the SYNC object). Change both together.
 
 (function () {
   if (window.__JUSTUS_PARTY_OVERLAY_LOADED__) {
@@ -1675,26 +1680,48 @@
   // ─────────────────────────────────────────────────────────────────
   function addEventLog(text, sender = "System", type = "event") {
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    eventLogs.push({ text, sender, time, type });
-    renderFeed();
+    const entry = { text, sender, time, type };
+    eventLogs.push(entry);
+    appendFeedItem(entry); // Incremental append — avoids O(n^2) full-feed rebuild per message.
+  }
+
+  // Escape peer-supplied strings before they touch innerHTML (prevents chat XSS).
+  function escapeOverlayHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function feedItemNode(e) {
+    const item = document.createElement("div");
+    item.className = "feed-item" + (e.type === "chat" ? " chat" : "");
+    item.innerHTML = `
+        <div class="feed-header">
+          <span class="feed-sender">${escapeOverlayHtml(e.sender)}</span>
+          <span>${escapeOverlayHtml(e.time)}</span>
+        </div>
+        <div>${escapeOverlayHtml(e.text)}</div>
+      `;
+    return item;
+  }
+
+  function appendFeedItem(e) {
+    const feedEl = shadow.getElementById("ju-event-feed");
+    if (!feedEl) return;
+    feedEl.appendChild(feedItemNode(e));
+    feedEl.scrollTop = feedEl.scrollHeight;
   }
 
   function renderFeed() {
     const feedEl = shadow.getElementById("ju-event-feed");
     if (!feedEl) return;
-    feedEl.innerHTML = eventLogs
-      .map(
-        (e) => `
-        <div class="feed-item ${e.type === "chat" ? "chat" : ""}">
-          <div class="feed-header">
-            <span class="feed-sender">${e.sender}</span>
-            <span>${e.time}</span>
-          </div>
-          <div>${e.text}</div>
-        </div>
-      `
-      )
-      .join("");
+    feedEl.textContent = "";
+    const frag = document.createDocumentFragment();
+    for (const e of eventLogs) frag.appendChild(feedItemNode(e));
+    feedEl.appendChild(frag);
     feedEl.scrollTop = feedEl.scrollHeight;
   }
 

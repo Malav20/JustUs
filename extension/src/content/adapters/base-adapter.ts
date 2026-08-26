@@ -10,6 +10,5 @@ export interface IPlayerAdapter {
   isPlaying(): boolean;
   onStateChange(cb: (event: PlayerEventType, time: number) => void): void;
   setPlaybackRate(rate: number): void;
-  getPlaybackRate(): number;
   destroy(): void;
 }

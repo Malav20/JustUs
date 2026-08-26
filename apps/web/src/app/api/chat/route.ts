@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase.server";
 
 // In-memory fallback cache in case DB table columns vary
 const memoryChatCache = new Map<string, Array<{ id: string; sender: string; text: string; time: string }>>();

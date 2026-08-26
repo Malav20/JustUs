@@ -76,24 +76,6 @@
         if (pauseBtn) pauseBtn.click();
       }
       respond(requestId, { success: true });
-    } else if (action === "NETFLIX_GET_STATE") {
-      if (player) {
-        respond(requestId, {
-          currentTime: (player.getCurrentTime ? player.getCurrentTime() : 0) / 1000,
-          duration: (player.getDuration ? player.getDuration() : 0) / 1000,
-          isPlaying: player.isPlaying ? player.isPlaying() : !player.isPaused(),
-          isBuffering: player.isBuffering ? player.isBuffering() : false,
-        });
-      } else if (video) {
-        respond(requestId, {
-          currentTime: video.currentTime,
-          duration: video.duration || 0,
-          isPlaying: !video.paused && !video.ended,
-          isBuffering: video.readyState < 3,
-        });
-      } else {
-        respond(requestId, { error: "No player found" });
-      }
     }
   });
 

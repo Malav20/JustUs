@@ -36,7 +36,7 @@ export default function JoinPage({ params }: PageProps) {
 
   const handleLaunchWebParty = () => {
     const finalUserName = userName.trim() || "Viewer_" + Math.floor(Math.random() * 1000);
-    window.location.href = `/mobile?room=${encodeURIComponent(roomId)}&user=${encodeURIComponent(finalUserName)}`;
+    window.location.href = `/mobile?user=${encodeURIComponent(finalUserName)}`;
   };
 
   const handleLaunchDesktopNetflix = () => {

@@ -2,16 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
 
-// Public browser/client client
+// Public browser/client client (anon key — safe to import in client components).
+// The privileged service-role client lives in `supabase.server.ts` so it is
+// never bundled into client-side JavaScript.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// Admin server-side client
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-});
-

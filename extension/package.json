@@ -4,7 +4,9 @@
   "description": "JustUs Watch Party Extension for Netflix & Prime Video with LiveKit WebRTC video call",
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build"
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.1",
@@ -17,6 +19,7 @@
     "@types/chrome": "^0.0.306",
     "@types/node": "^20.17.19",
     "typescript": "^5.7.3",
-    "vite": "^5.4.14"
+    "vite": "^5.4.14",
+    "vitest": "^2.1.9"
   }
 }

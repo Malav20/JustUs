@@ -52,8 +52,7 @@
         "https://www.youtube.com/*",
         "https://*.youtube.com/*",
         "https://youtube.com/*",
-        "https://youtu.be/*",
-        "http://localhost:3000/sandbox*"
+        "https://youtu.be/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"

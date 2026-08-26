@@ -35,8 +35,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     activeTabUrl.includes("primevideo.com") ||
     activeTabUrl.includes("amazon.") ||
     activeTabUrl.includes("youtube.com") ||
-    activeTabUrl.includes("youtu.be") ||
-    activeTabUrl.includes("localhost:3000/sandbox");
+    activeTabUrl.includes("youtu.be");
 
   // Check stored session
   chrome.runtime.sendMessage({ type: "GET_STATUS" }, (response) => {

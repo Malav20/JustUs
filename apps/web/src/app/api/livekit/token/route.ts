@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createLiveKitToken } from "@/lib/livekit";
+import { corsHeaders, corsPreflight } from "@/lib/cors";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, PATCH, DELETE",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-};
-
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
-}
+export const OPTIONS = corsPreflight;
 
 export async function POST(req: NextRequest) {
   try {

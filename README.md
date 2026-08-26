@@ -13,7 +13,6 @@ Built with **Next.js (Vercel)**, **Chrome Manifest V3 Extension**, **Supabase Re
 - **Isolated Shadow DOM Overlay**: Injected UI runs entirely inside an isolated `shadowRoot` so Netflix/Prime Video stylesheets cannot break the video call interface.
 - **Netflix & Amazon Prime Adapters**: Resilient player hooks using mutation observers and HTML5/Fiber player controls.
 - **Instant Room Generation & Deep Links**: One-click party creation with shareable `/join/[roomId]` invite links.
-- **Local Test Sandbox**: Built-in test suite at `/sandbox` to test synchronized video and WebRTC calls without needing to open streaming tabs.
 
 ---
 
@@ -58,7 +57,7 @@ Built with **Next.js (Vercel)**, **Chrome Manifest V3 Extension**, **Supabase Re
 ## Quickstart & Setup
 
 ### 1. Database Setup (Supabase)
-Run the SQL script located in [`supabase/schema.sql`](file:///c:/Vedora%20Labs/JustUs/supabase/schema.sql) in your Supabase SQL Editor to enable the `rooms` and `room_participants` tables with Realtime broadcast publications enabled.
+Run the SQL script located in [`supabase/schema.sql`](file:///c:/Vedora%20Labs/JustUs/supabase/schema.sql) in your Supabase SQL Editor to create the `rooms` and `chat_messages` tables with Realtime broadcast publications enabled.
 
 ### 2. Run the Next.js Web App
 ```bash
@@ -72,15 +71,6 @@ Open [http://localhost:3000](http://localhost:3000) to view the web dashboard an
 2. Toggle on **Developer mode** in the top right corner.
 3. Click **Load unpacked**.
 4. Select the `extension/dist` directory (after running `npm run build:ext` or `npm run build`).
-
----
-
-## Testing in the Local Sandbox
-You can test the entire playback sync engine and WebRTC video call right inside your browser without logging into Netflix:
-1. Open [http://localhost:3000/sandbox](http://localhost:3000/sandbox) in two separate browser windows (or one regular and one incognito window).
-2. Enter the same Room ID (e.g. `test-room`) in both windows and click **Join Room**.
-3. Play, pause, or seek the video in Window A — Window B will mirror the playback immediately with drift compensation.
-4. Test the LiveKit 1-on-1 audio/video calling and realtime party chat!
 
 ---
 
