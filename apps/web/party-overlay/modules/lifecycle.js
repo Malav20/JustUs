@@ -34,7 +34,6 @@
     loadSupabase(() => {
       connectRealtimeChannel(activeRoomId, isHost);
       updatePillState();
-      scheduleAutoVideoCall();
       if (isHost) {
         // Broadcast the new URL to viewers once the channel is connected.
         // Retry because channel subscription is async.

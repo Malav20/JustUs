@@ -13,6 +13,7 @@
     const newRoomId = generateRoomCode();
     isHost = true;
     activeRoomId = newRoomId;
+    isInitialSyncCompleted = true;
     savePartyState();
 
     loadSupabase(() => {
@@ -67,7 +68,6 @@
       addEventLog(`🎉 ${currentUserName} created watch party [${newRoomId}]!`, currentUserName);
       updatePillState();
       renderDrawerContent();
-      scheduleAutoVideoCall();
     });
   }
 
@@ -82,6 +82,7 @@
     }
     isHost = false;
     activeRoomId = cleanCode;
+    isInitialSyncCompleted = false;
     savePartyState();
 
     loadSupabase(() => {
@@ -89,7 +90,6 @@
       addEventLog(`🍿 You joined party [${cleanCode}]`, currentUserName);
       updatePillState();
       renderDrawerContent();
-      scheduleAutoVideoCall();
     });
   }
 

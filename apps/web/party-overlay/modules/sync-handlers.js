@@ -16,6 +16,7 @@
 
   function handleRemotePlay(payload) {
     if (payload.sender === currentUserName) return;
+    isInitialSyncCompleted = true;
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
     addEventLog(`▶️ Played video at ${timeStr}`, sender);
@@ -33,6 +34,7 @@
 
   function handleRemotePause(payload) {
     if (payload.sender === currentUserName) return;
+    isInitialSyncCompleted = true;
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
     addEventLog(`⏸️ Paused video at ${timeStr}`, sender);
@@ -51,6 +53,7 @@
   function handleRemoteSeek(payload) {
     if (payload.sender === currentUserName) return;
     if (!payload || payload.time < SYNC.MIN_MEANINGFUL_TIME_S) return;
+    isInitialSyncCompleted = true;
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
     const current = getCurrentVideoTime();
@@ -91,6 +94,15 @@
         if (target > SYNC.MIN_MEANINGFUL_TIME_S) {
           seekVideo(target);
         }
+        if (remotePlaying) playVideo();
+        else pauseVideo();
+      });
+      return;
+    }
+
+    // Reconcile play state when explicit PLAY/PAUSE was missed (safe: sync lock blocks echo).
+    if (remotePlaying !== localPlaying) {
+      applySyncPlayerAction(() => {
         if (remotePlaying) playVideo();
         else pauseVideo();
       });
@@ -167,7 +179,7 @@
   function startHeartbeat() {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     heartbeatTimer = setInterval(() => {
-      if (!activeChannel || isSyncActionInProgress) return;
+      if (!activeChannel || isSyncActionInProgress || !isInitialSyncCompleted) return;
       const current = getCurrentVideoTime();
       if (current < SYNC.MIN_MEANINGFUL_TIME_S && !isVideoPlaying()) return;
 

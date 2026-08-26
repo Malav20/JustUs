@@ -13,7 +13,7 @@
   function leaveParty(isLocalInitiated = true) {
     setWakeLock(false);
     leaveLiveKitCall();
-    if (videoWindow) videoWindow.classList.add("hidden");
+    if (pipContainer) pipContainer.style.display = "none";
     if (heartbeatTimer) clearInterval(heartbeatTimer);
 
     if (isLocalInitiated && isHost && activeRoomId) {
@@ -49,6 +49,7 @@
     }
     activeRoomId = null;
     isHost = false;
+    isInitialSyncCompleted = false;
     savePartyState();
     updatePillState();
     renderDrawerContent();

@@ -30,14 +30,25 @@
   let pipStatusText      = null;
 
   let isVideoCallActive  = false;
-  let isMicEnabled       = true;
+  let isMicEnabled       = false;
   let isCamEnabled       = true;
   let currentFacingMode  = "user";
   let isLkConnecting     = false;
   let reconnectTimer     = null;
   let autoCallScheduled  = false;
   let userHungUp         = false;
-  let ctrlHideTimer      = null;
+  // Simple stroke icons for PIP controls (no emoji)
+  const PIP_ICONS = {
+    close: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+    mic: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>',
+  micOff: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="2" x2="22" y1="2" y2="22"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V5a3 3 0 0 0-5.94-1.32"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" x2="12" y1="19" y2="22"/></svg>',
+    cam: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg>',
+    camOff: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m2 2 20 20"/><path d="M7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16"/><path d="m9.5 7.5 3 2.5 3-2.5"/></svg>',
+    flip: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>',
+    end: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 1.72 1.84 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/></svg>',
+  };
+
+  const PIP_BTN = "width:32px;height:32px;border-radius:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0;";
 
   // ── identity ───────────────────────────────────────────────────────────────
   function getLkIdentity() {
@@ -131,12 +142,12 @@
     ctrl.id = "justus-pip-ctrl";
     ctrl.style.cssText = "position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:6px;z-index:3;opacity:0;pointer-events:none;transition:opacity 0.2s;background:linear-gradient(to bottom,rgba(0,0,0,0.65) 0%,transparent 40%,transparent 55%,rgba(0,0,0,0.85) 100%);";
     ctrl.innerHTML = `
-      <button id="justus-btn-close" style="align-self:flex-end;width:26px;height:26px;border-radius:13px;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0;">✕</button>
+      <button id="justus-btn-close" title="Close" style="align-self:flex-end;width:26px;height:26px;border-radius:13px;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.3);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0;">${PIP_ICONS.close}</button>
       <div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:4px 8px;background:rgba(8,10,20,0.92);border:1px solid rgba(255,255,255,0.15);border-radius:20px;">
-        <button id="justus-btn-mic" style="width:32px;height:32px;border-radius:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0;" title="Mic">🎙</button>
-        <button id="justus-btn-cam" style="width:32px;height:32px;border-radius:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0;" title="Cam">📷</button>
-        <button id="justus-btn-flip" style="width:32px;height:32px;border-radius:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0;" title="Flip">🔄</button>
-        <button id="justus-btn-end" style="width:32px;height:32px;border-radius:16px;background:#7f1d1d;border:1px solid rgba(239,68,68,0.4);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;padding:0;" title="End">📵</button>
+        <button id="justus-btn-mic" title="Mic" style="${PIP_BTN} opacity:0.35;">${PIP_ICONS.micOff}</button>
+        <button id="justus-btn-cam" title="Camera" style="${PIP_BTN}">${PIP_ICONS.cam}</button>
+        <button id="justus-btn-flip" title="Flip" style="${PIP_BTN}">${PIP_ICONS.flip}</button>
+        <button id="justus-btn-end" title="End call" style="${PIP_BTN} background:#7f1d1d;border-color:rgba(239,68,68,0.4);">${PIP_ICONS.end}</button>
       </div>
     `;
     pip.appendChild(ctrl);
@@ -151,6 +162,7 @@
     pipStatusText  = wait.querySelector("#justus-pip-status");
 
     setupPipInteractions(pip, ctrl);
+    updatePipCtrlButtons();
   }
 
   // ── PIP drag + tap-to-reveal controls ─────────────────────────────────────
@@ -245,7 +257,66 @@
     }, 4000);
   }
 
-  // ── play video helper ──────────────────────────────────────────────────────
+  function restoreLocalVideoPreview() {
+    if (!pipLocalVideo || !localCameraStream || !isCamEnabled) return;
+    const vt = localCameraStream.getVideoTracks()[0];
+    if (!vt || vt.readyState !== "live") return;
+
+    const existing =
+      pipLocalVideo.srcObject instanceof MediaStream
+        ? pipLocalVideo.srcObject.getVideoTracks()[0]
+        : null;
+
+    if (existing !== vt) {
+      setVideoSrc(pipLocalVideo, localCameraStream);
+    } else if (pipLocalVideo.paused) {
+      pipLocalVideo.play().catch(() => {});
+    }
+    pipLocalVideo.style.display = "block";
+  }
+
+  function updatePipCtrlButtons() {
+    const micBtn = pipContainer?.querySelector("#justus-btn-mic");
+    const camBtn = pipContainer?.querySelector("#justus-btn-cam");
+    if (micBtn) {
+      micBtn.style.opacity = isMicEnabled ? "1" : "0.35";
+      micBtn.innerHTML = isMicEnabled ? PIP_ICONS.mic : PIP_ICONS.micOff;
+    }
+    if (camBtn) {
+      camBtn.style.opacity = isCamEnabled ? "1" : "0.35";
+      camBtn.innerHTML = isCamEnabled ? PIP_ICONS.cam : PIP_ICONS.camOff;
+    }
+  }
+
+  async function startLocalMic() {
+    if (!navigator.mediaDevices?.getUserMedia || livekitRoom?.state !== "connected") return;
+    const LK = window.LivekitClient;
+    if (!LK) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const rawTrack = stream.getAudioTracks()[0];
+      if (!rawTrack) return;
+
+      if (lkLocalAudioTrack) {
+        try { await livekitRoom.localParticipant.unpublishTrack(lkLocalAudioTrack); } catch {}
+        try { lkLocalAudioTrack.stop(); } catch {}
+        lkLocalAudioTrack = null;
+      }
+
+      lkLocalAudioTrack = new LK.LocalAudioTrack(rawTrack, undefined, false);
+      await livekitRoom.localParticipant.publishTrack(lkLocalAudioTrack);
+      lkLocalAudioTrack.mediaStreamTrack.enabled = true;
+
+      // iOS: mic acquisition disrupts camera — refresh preview after audio session settles.
+      setTimeout(() => restoreLocalVideoPreview(), 150);
+    } catch (err) {
+      console.warn("[JustUS] Mic:", err);
+      isMicEnabled = false;
+      updatePipCtrlButtons();
+      addEventLog("⚠️ Mic unavailable — check permissions", "System");
+    }
+  }
+
   // Mirrors LiveKit's own Safari workaround in Track.ts:
   //   - No `autoplay` attribute (iOS low-power mode shows pause overlay)
   //   - srcObject assigned twice with setTimeout(0) to force WebKit repaint
@@ -408,19 +479,7 @@
         isVideoCallActive = true;
         updateVideoPillState();
 
-        // Mic — let LiveKit manage this (it needs to handle the audio session)
-        if (isMicEnabled) {
-          try {
-            await room.localParticipant.setMicrophoneEnabled(true);
-            const pub = room.localParticipant.getTrackPublication(LK.Track.Source.Microphone);
-            if (pub?.track) {
-              lkLocalAudioTrack = pub.track;
-              lkLocalAudioTrack.mediaStreamTrack.enabled = true;
-            }
-          } catch (e) { console.warn("[JustUS] Mic:", e); }
-        }
-
-        // Camera — getUserMedia directly (NOT setCameraEnabled)
+        // Camera first — mic stays off until user taps mic (iOS audio session conflict).
         if (isCamEnabled) await startLocalCamera();
 
         // Pick up tracks already in room
@@ -492,33 +551,25 @@
 
   // ── mic toggle ─────────────────────────────────────────────────────────────
   async function toggleMic() {
-    isMicEnabled = !isMicEnabled;
-    const btn = pipContainer?.querySelector("#justus-btn-mic");
-    if (btn) btn.style.opacity = isMicEnabled ? "1" : "0.35";
+    if (!livekitRoom || livekitRoom.state !== "connected") return;
 
-    // Hardware mute first — no server round-trip latency
-    if (lkLocalAudioTrack?.mediaStreamTrack) {
-      lkLocalAudioTrack.mediaStreamTrack.enabled = isMicEnabled;
-    }
-    if (livekitRoom?.state === "connected") {
-      try {
-        await livekitRoom.localParticipant.setMicrophoneEnabled(isMicEnabled);
-        const pub = livekitRoom.localParticipant.getTrackPublication(
-          window.LivekitClient.Track.Source.Microphone
-        );
-        if (pub?.track) {
-          lkLocalAudioTrack = pub.track;
-          lkLocalAudioTrack.mediaStreamTrack.enabled = isMicEnabled;
-        }
-      } catch {}
+    isMicEnabled = !isMicEnabled;
+    updatePipCtrlButtons();
+
+    if (isMicEnabled) {
+      await startLocalMic();
+    } else {
+      if (lkLocalAudioTrack?.mediaStreamTrack) {
+        lkLocalAudioTrack.mediaStreamTrack.enabled = false;
+      }
+      restoreLocalVideoPreview();
     }
   }
 
   // ── camera toggle ──────────────────────────────────────────────────────────
   async function toggleCam() {
     isCamEnabled = !isCamEnabled;
-    const btn = pipContainer?.querySelector("#justus-btn-cam");
-    if (btn) btn.style.opacity = isCamEnabled ? "1" : "0.35";
+    updatePipCtrlButtons();
 
     if (localCameraStream) {
       localCameraStream.getVideoTracks().forEach((t) => { t.enabled = isCamEnabled; });
@@ -588,12 +639,5 @@
     }
   }
 
-  // ── auto start ─────────────────────────────────────────────────────────────
-  function scheduleAutoVideoCall() {
-    if (autoCallScheduled || isVideoCallActive || isLkConnecting) return;
-    autoCallScheduled = true;
-    setTimeout(() => {
-      if (!activeRoomId || isVideoCallActive || isLkConnecting) return;
-      toggleVideoCallWindow();
-    }, 800);
-  }
+  // Video call is user-initiated only — no auto-connect on party join.
+  function scheduleAutoVideoCall() {}
