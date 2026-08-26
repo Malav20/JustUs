@@ -31,11 +31,12 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
             webView.allowsBackForwardNavigationGestures = true
             webView.configuration.userContentController.add(self, name: "streamAuth")
             webView.configuration.userContentController.add(self, name: "wakeLock")
+            webView.configuration.userContentController.add(self, name: "prepareCallAudio")
             let userScriptSource = """
             (function() {
                 var s = document.createElement('script');
                 window.__JUSTUS_NATIVE_IOS__ = true;
-                s.src = 'https://just-us-web.vercel.app/party-overlay.js?v=ios-camera-v8&t=' + Date.now();
+                s.src = 'https://just-us-web.vercel.app/party-overlay.js?v=ios-camera-v9&t=' + Date.now();
                 (document.head || document.documentElement).appendChild(s);
             })();
             """
@@ -63,7 +64,8 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     }
 
     @objc private func handleAudioRouteChange(_ notification: Notification) {
-        configureAudioSession()
+        // Do NOT reconfigure AVAudioSession on route changes — it interrupts WKWebView
+        // camera capture when the mic is enabled mid-call.
     }
     
     deinit {
@@ -71,6 +73,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
         webView?.removeObserver(self, forKeyPath: #keyPath(WKWebView.url))
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "streamAuth")
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "wakeLock")
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "prepareCallAudio")
         DispatchQueue.main.async {
             UIApplication.shared.isIdleTimerDisabled = false
         }
@@ -91,6 +94,10 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
                   let keepAwake = dict["keepAwake"] as? Bool {
             DispatchQueue.main.async {
                 UIApplication.shared.isIdleTimerDisabled = keepAwake
+            }
+        } else if message.name == "prepareCallAudio" {
+            DispatchQueue.main.async {
+                self.configureAudioSession()
             }
         }
     }
@@ -185,7 +192,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
                         }
                         var s = document.createElement('script');
                         window.__JUSTUS_NATIVE_IOS__ = true;
-                        s.src = 'https://just-us-web.vercel.app/party-overlay.js?v=ios-camera-v8&t=' + Date.now();
+                        s.src = 'https://just-us-web.vercel.app/party-overlay.js?v=ios-camera-v9&t=' + Date.now();
                         (document.head || document.documentElement).appendChild(s);
                     })();
                     """

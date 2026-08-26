@@ -39,6 +39,7 @@
   let userHungUp         = false;
   let ctrlHideTimer      = null;
   let captureUsesCombinedAv = false;
+  let iosHeldAudioTrack     = null; // iOS: audio captured at join, published when mic tapped
   // Simple stroke icons for PIP controls (no emoji)
   const PIP_ICONS = {
     close: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
@@ -270,7 +271,7 @@
         : null;
 
     if (existing !== vt) {
-      setVideoSrc(pipLocalVideo, localCameraStream);
+      setVideoSrc(pipLocalVideo, new MediaStream([vt]));
     } else if (pipLocalVideo.paused) {
       pipLocalVideo.play().catch(() => {});
     }
@@ -290,12 +291,23 @@
     }
   }
 
-  async function startLocalCameraWithMic() {
+  function notifyNativePrepareCallAudio() {
+    try {
+      if (window.webkit?.messageHandlers?.prepareCallAudio) {
+        window.webkit.messageHandlers.prepareCallAudio.postMessage({});
+      }
+    } catch {}
+  }
+
+  // iOS: capture mic+camera ONCE at join. Mic toggle only unmutes — never re-acquires.
+  async function startLocalCaptureIOS() {
     if (!navigator.mediaDevices?.getUserMedia || livekitRoom?.state !== "connected") return;
     const LK = window.LivekitClient;
     if (!LK) return;
 
     try {
+      notifyNativePrepareCallAudio();
+
       if (lkLocalVideoTrack) {
         try { await livekitRoom.localParticipant.unpublishTrack(lkLocalVideoTrack); } catch {}
         lkLocalVideoTrack = null;
@@ -305,13 +317,14 @@
         try { lkLocalAudioTrack.stop(); } catch {}
         lkLocalAudioTrack = null;
       }
+      iosHeldAudioTrack = null;
+
       if (localCameraStream) {
         localCameraStream.getTracks().forEach((t) => { try { t.stop(); } catch {} });
         localCameraStream = null;
       }
       if (pipLocalVideo) pipLocalVideo.srcObject = null;
 
-      // Single capture keeps iOS AVAudioSession + camera alive together.
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: {
@@ -328,25 +341,60 @@
       const videoTrack = stream.getVideoTracks()[0];
       const audioTrack = stream.getAudioTracks()[0];
 
+      if (audioTrack) {
+        audioTrack.enabled = false;
+        iosHeldAudioTrack = audioTrack;
+      }
+
       if (pipLocalVideo && videoTrack && isCamEnabled) {
         setVideoSrc(pipLocalVideo, new MediaStream([videoTrack]));
         pipLocalVideo.style.display = "block";
       }
 
       if (videoTrack && isCamEnabled) await publishCameraTrack(videoTrack);
+    } catch (err) {
+      console.warn("[JustUS] iOS AV capture:", err);
+      captureUsesCombinedAv = false;
+      iosHeldAudioTrack = null;
+      addEventLog("⚠️ Camera — " + (err.message || err.name), "System");
+    }
+  }
 
-      if (audioTrack && isMicEnabled) {
+  async function enableMicFromHeldTrack() {
+    if (!livekitRoom || livekitRoom.state !== "connected") return;
+    const LK = window.LivekitClient;
+    if (!LK) return;
+
+    const audioTrack = iosHeldAudioTrack || localCameraStream?.getAudioTracks()[0];
+    if (!audioTrack) {
+      isMicEnabled = false;
+      updatePipCtrlButtons();
+      addEventLog("⚠️ Mic unavailable — rejoin the call", "System");
+      return;
+    }
+
+    notifyNativePrepareCallAudio();
+    audioTrack.enabled = true;
+
+    try {
+      if (!lkLocalAudioTrack) {
         lkLocalAudioTrack = new LK.LocalAudioTrack(audioTrack, undefined, false);
         await livekitRoom.localParticipant.publishTrack(lkLocalAudioTrack);
+      } else {
         lkLocalAudioTrack.mediaStreamTrack.enabled = true;
       }
     } catch (err) {
-      console.warn("[JustUS] Combined AV capture:", err);
-      captureUsesCombinedAv = false;
+      console.warn("[JustUS] Mic publish:", err);
       isMicEnabled = false;
+      audioTrack.enabled = false;
       updatePipCtrlButtons();
-      addEventLog("⚠️ Camera/mic — " + (err.message || err.name), "System");
+      return;
     }
+
+    // Publishing audio can stall the camera preview on iOS — refresh without re-acquiring.
+    restoreLocalVideoPreview();
+    setTimeout(() => restoreLocalVideoPreview(), 200);
+    setTimeout(() => restoreLocalVideoPreview(), 600);
   }
 
   async function restartLocalCameraAfterMic() {
@@ -362,9 +410,8 @@
   async function startLocalMic() {
     if (!navigator.mediaDevices?.getUserMedia || livekitRoom?.state !== "connected") return;
 
-    // iOS: audio-only getUserMedia kills the existing camera capture — use combined capture.
-    if (IS_IOS && isCamEnabled) {
-      await startLocalCameraWithMic();
+    if (IS_IOS && captureUsesCombinedAv) {
+      await enableMicFromHeldTrack();
       return;
     }
 
@@ -427,7 +474,7 @@
         if (tracks.length && tracks[0].readyState === "live") {
           tracks[0].enabled = isCamEnabled;
           if (isCamEnabled && pipLocalVideo) {
-            setVideoSrc(pipLocalVideo, localCameraStream);
+            setVideoSrc(pipLocalVideo, new MediaStream([tracks[0]]));
             pipLocalVideo.style.display = "block";
           }
           return;
@@ -455,7 +502,10 @@
       captureUsesCombinedAv = false;
 
       if (pipLocalVideo) {
-        setVideoSrc(pipLocalVideo, localCameraStream);
+        const vt = localCameraStream.getVideoTracks()[0];
+        if (vt) {
+          setVideoSrc(pipLocalVideo, new MediaStream([vt]));
+        }
         pipLocalVideo.style.display = isCamEnabled ? "block" : "none";
       }
 
@@ -570,8 +620,11 @@
         isVideoCallActive = true;
         updateVideoPillState();
 
-        // Camera first — mic stays off until user taps mic (iOS audio session conflict).
-        if (isCamEnabled) await startLocalCamera();
+        // iOS: one combined capture at join; mic is unmuted later without re-acquiring.
+        if (isCamEnabled) {
+          if (IS_IOS) await startLocalCaptureIOS();
+          else await startLocalCamera();
+        }
 
         // Pick up tracks already in room
         room.remoteParticipants.forEach((p) => {
@@ -615,6 +668,7 @@
     clearTimeout(reconnectTimer);
     clearLkIdentity();
     captureUsesCombinedAv = false;
+    iosHeldAudioTrack = null;
 
     // Stop camera hardware (safe to stop on hangup — not toggling)
     if (localCameraStream) {
@@ -651,9 +705,11 @@
     if (isMicEnabled) {
       await startLocalMic();
     } else {
+      if (iosHeldAudioTrack) iosHeldAudioTrack.enabled = false;
       if (lkLocalAudioTrack?.mediaStreamTrack) {
         lkLocalAudioTrack.mediaStreamTrack.enabled = false;
       }
+      restoreLocalVideoPreview();
     }
   }
 
@@ -675,8 +731,15 @@
   // ── flip camera ────────────────────────────────────────────────────────────
   async function flipCamera() {
     currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
-    if (IS_IOS && isMicEnabled && isCamEnabled) {
-      await startLocalCameraWithMic();
+    if (IS_IOS) {
+      const micWasOn = isMicEnabled;
+      isMicEnabled = false;
+      await startLocalCaptureIOS();
+      if (micWasOn) {
+        isMicEnabled = true;
+        updatePipCtrlButtons();
+        await enableMicFromHeldTrack();
+      }
       return;
     }
     if (localCameraStream) {
