@@ -474,12 +474,12 @@
     /* Ultra-Sleek Floating Video-First PIP Window (Hardware Composited) */
     .video-call-window {
       position: fixed;
-      top: 65px;
+      top: 70px;
       right: 20px;
-      width: 220px;
-      height: 165px;
-      min-width: 150px;
-      min-height: 110px;
+      width: 240px;
+      height: 180px;
+      min-width: 160px;
+      min-height: 120px;
       max-width: 85vw;
       max-height: 80vh;
       border-radius: 18px;
@@ -520,12 +520,15 @@
       pointer-events: none !important;
     }
 
+    /* Local self-view PIP positioned in top-left to eliminate control button collision */
     .local-video-pip {
       position: absolute !important;
-      bottom: 8px !important;
-      right: 8px !important;
-      width: 64px !important;
-      height: 48px !important;
+      top: 8px !important;
+      left: 8px !important;
+      bottom: auto !important;
+      right: auto !important;
+      width: 60px !important;
+      height: 45px !important;
       border-radius: 10px !important;
       border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
       object-fit: cover !important;
@@ -570,14 +573,15 @@
     .video-controls-overlay {
       position: absolute;
       inset: 0;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, transparent 40%, transparent 60%, rgba(0,0,0,0.85) 100%);
+      background: linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, transparent 35%, transparent 60%, rgba(0,0,0,0.85) 100%);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      align-items: center;
       padding: 8px;
       z-index: 4;
       opacity: 1;
-      transition: opacity 0.25s ease;
+      transition: opacity 0.2s ease;
       pointer-events: auto;
     }
     .video-controls-overlay.hidden {
@@ -610,26 +614,30 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      padding-bottom: 4px;
+      gap: 8px;
+      padding: 5px 8px;
+      background: rgba(12, 14, 24, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 22px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       pointer-events: auto;
+      z-index: 10;
     }
 
     .call-ctrl-btn {
-      width: 38px !important;
-      height: 38px !important;
-      min-width: 38px !important;
-      min-height: 38px !important;
-      border-radius: 19px !important;
-      background: rgba(18, 20, 32, 0.9) !important;
-      border: 1.5px solid rgba(255, 255, 255, 0.35) !important;
+      width: 34px !important;
+      height: 34px !important;
+      min-width: 34px !important;
+      min-height: 34px !important;
+      border-radius: 17px !important;
+      background: rgba(255, 255, 255, 0.08) !important;
+      border: 1px solid rgba(255, 255, 255, 0.25) !important;
       color: #ffffff !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
       cursor: pointer !important;
-      backdrop-filter: blur(12px) !important;
-      -webkit-backdrop-filter: blur(12px) !important;
       touch-action: manipulation !important;
       -webkit-tap-highlight-color: transparent !important;
       user-select: none !important;
@@ -654,8 +662,8 @@
       position: absolute;
       bottom: 0;
       right: 0;
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
       cursor: nwse-resize;
       display: flex;
       align-items: flex-end;
@@ -1241,6 +1249,10 @@
       callback();
     };
     btn.addEventListener("touchstart", handleAction, { passive: false });
+    btn.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    });
     btn.addEventListener("click", handleAction);
   }
 
@@ -1312,7 +1324,10 @@
       if (remoteVideoTrack && typeof remoteVideoTrack.setSubscribed === "function") {
         remoteVideoTrack.setSubscribed(true);
       }
-      toggleControlsOverlay();
+      if (videoControls) {
+        videoControls.classList.remove("hidden");
+        resetControlsHideTimer();
+      }
       if (!livekitRoom && !isLiveKitConnecting) {
         connectLiveKitCall();
       }
@@ -1371,8 +1386,15 @@
         const { token, wsUrl } = tokenResult;
 
         const room = new window.LivekitClient.Room({
-          adaptiveStream: true,
-          dynacast: true,
+          adaptiveStream: false,
+          dynacast: false,
+          publishDefaults: {
+            simulcast: false,
+            videoCodec: "vp8",
+          },
+          videoCaptureDefaults: {
+            resolution: window.LivekitClient.VideoPresets?.h216?.resolution || { width: 384, height: 216, frameRate: 15 },
+          },
         });
         livekitRoom = room;
 
@@ -1382,14 +1404,18 @@
             remoteVideoTrack = track;
             const remoteVideo = shadow.getElementById("ju-remote-video");
             if (remoteVideo) {
+              remoteVideo.muted = true;
+              remoteVideo.setAttribute("playsinline", "true");
+              remoteVideo.setAttribute("webkit-playsinline", "true");
               track.attach(remoteVideo);
+              remoteVideo.play().catch(() => {});
               if (waitingOverlay) waitingOverlay.classList.add("hidden");
             }
           }
           if (track.kind === window.LivekitClient.Track.Kind.Audio) {
             const audioEl = track.attach();
             remoteAudioEl = audioEl;
-            audioEl.volume = 0.9;
+            audioEl.volume = 1.0;
             shadow.appendChild(audioEl);
           }
         });
@@ -1434,20 +1460,26 @@
           console.warn("[JustUS] Microphone setup notice:", e);
         }
 
-        // 2. Front/User Camera track (iOS Safari / WebKit compatible)
+        // 2. Front/User Camera track (lightweight 384x216 15fps for silky iPad performance)
         try {
           localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
             facingMode: currentFacingMode || "user",
+            resolution: window.LivekitClient.VideoPresets?.h216?.resolution || { width: 384, height: 216, frameRate: 15 },
           });
           const localVideoEl = shadow.getElementById("ju-local-video");
           if (localVideoEl && localVideoTrack) {
             localVideoEl.muted = true;
+            localVideoEl.setAttribute("playsinline", "true");
+            localVideoEl.setAttribute("webkit-playsinline", "true");
             localVideoTrack.attach(localVideoEl);
             localVideoEl.classList.remove("hidden");
             localVideoEl.play().catch(() => {});
           }
           if (localVideoTrack) {
-            await room.localParticipant.publishTrack(localVideoTrack);
+            await room.localParticipant.publishTrack(localVideoTrack, {
+              simulcast: false,
+              videoCodec: "vp8",
+            });
           }
         } catch (e) {
           console.warn("[JustUS] Camera setup notice:", e);
@@ -1545,15 +1577,21 @@
       try {
         localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
           facingMode: currentFacingMode || "user",
+          resolution: window.LivekitClient.VideoPresets?.h216?.resolution || { width: 384, height: 216, frameRate: 15 },
         });
         if (localVideoEl && localVideoTrack) {
           localVideoEl.muted = true;
+          localVideoEl.setAttribute("playsinline", "true");
+          localVideoEl.setAttribute("webkit-playsinline", "true");
           localVideoTrack.attach(localVideoEl);
           localVideoEl.classList.remove("hidden");
           localVideoEl.play().catch(() => {});
         }
         if (localVideoTrack) {
-          await livekitRoom.localParticipant.publishTrack(localVideoTrack);
+          await livekitRoom.localParticipant.publishTrack(localVideoTrack, {
+            simulcast: false,
+            videoCodec: "vp8",
+          });
         }
       } catch (e) {}
     }
@@ -1575,15 +1613,21 @@
       try {
         localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
           facingMode: currentFacingMode,
+          resolution: window.LivekitClient.VideoPresets?.h216?.resolution || { width: 384, height: 216, frameRate: 15 },
         });
         if (localVideoEl && localVideoTrack) {
           localVideoEl.muted = true;
+          localVideoEl.setAttribute("playsinline", "true");
+          localVideoEl.setAttribute("webkit-playsinline", "true");
           localVideoTrack.attach(localVideoEl);
           localVideoEl.classList.remove("hidden");
           localVideoEl.play().catch(() => {});
         }
         if (localVideoTrack) {
-          await livekitRoom.localParticipant.publishTrack(localVideoTrack);
+          await livekitRoom.localParticipant.publishTrack(localVideoTrack, {
+            simulcast: false,
+            videoCodec: "vp8",
+          });
         }
       } catch (e) {}
     }
