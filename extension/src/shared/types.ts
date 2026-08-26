@@ -7,6 +7,7 @@ export interface SyncPayload {
   title?: string;
   sentAt: number;
   sender: string;
+  isHost?: boolean;
 }
 
 export interface ChatMessage {

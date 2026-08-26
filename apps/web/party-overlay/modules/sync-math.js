@@ -31,31 +31,40 @@ function shouldSeek(currentTime, targetTime, threshold = SYNC.EVENT_SEEK_THRESHO
   return targetTime > 1.0 && Math.abs(currentTime - targetTime) > threshold;
 }
 
-function computeHeartbeatCorrection(input) {
-  const latency = clampLatencySeconds(input.sentAt, input.now, SYNC.HEARTBEAT_MAX_LATENCY_S);
-  const expected = expectedRemoteTime(input.payloadTime, input.isPlaying, latency);
-  const delta = expected - input.currentTime;
-  const drift = Math.abs(delta);
-  const correction = {};
+  function computeHeartbeatCorrection(input) {
+    const latency = clampLatencySeconds(input.sentAt, input.now, SYNC.HEARTBEAT_MAX_LATENCY_S);
+    const expected = expectedRemoteTime(input.payloadTime, input.isPlaying, latency);
+    const delta = expected - input.currentTime;
+    const drift = Math.abs(delta);
+    const correction = {};
 
-  if (input.isPlaying) {
-    correction.ensurePlaying = true;
-    if (drift > SYNC.HARD_SEEK_WHILE_PLAYING_S && expected > SYNC.MIN_MEANINGFUL_TIME_S) {
-      correction.seekTo = expected;
-      correction.playbackRate = 1.0;
-    } else if (delta > SYNC.RATE_DEADBAND_S) {
-      correction.playbackRate = SYNC.RATE_FAST;
-    } else if (delta < -SYNC.RATE_DEADBAND_S) {
-      correction.playbackRate = SYNC.RATE_SLOW;
+    if (input.isPlaying) {
+      correction.ensurePlaying = true;
+      if (drift > SYNC.HARD_SEEK_WHILE_PLAYING_S && expected > SYNC.MIN_MEANINGFUL_TIME_S) {
+        correction.seekTo = expected;
+        correction.playbackRate = 1.0;
+      } else if (delta > SYNC.RATE_DEADBAND_S) {
+        correction.playbackRate = SYNC.RATE_FAST;
+      } else if (delta < -SYNC.RATE_DEADBAND_S) {
+        correction.playbackRate = SYNC.RATE_SLOW;
+      } else {
+        correction.playbackRate = 1.0;
+      }
     } else {
       correction.playbackRate = 1.0;
+      correction.ensurePaused = true;
+      if (drift > SYNC.HARD_SEEK_WHILE_PAUSED_S && expected > SYNC.MIN_MEANINGFUL_TIME_S) {
+        correction.seekTo = expected;
+      }
     }
-  } else {
-    correction.playbackRate = 1.0;
-    correction.ensurePaused = true;
-    if (drift > SYNC.HARD_SEEK_WHILE_PAUSED_S && expected > SYNC.MIN_MEANINGFUL_TIME_S) {
-      correction.seekTo = expected;
-    }
+    return correction;
   }
-  return correction;
-}
+
+  function computeHeartbeatPositionCorrection(input, localIsPlaying) {
+    if (localIsPlaying !== input.isPlaying) return {};
+    const full = computeHeartbeatCorrection(input);
+    const correction = {};
+    if (full.seekTo !== undefined) correction.seekTo = full.seekTo;
+    if (full.playbackRate !== undefined) correction.playbackRate = full.playbackRate;
+    return correction;
+  }

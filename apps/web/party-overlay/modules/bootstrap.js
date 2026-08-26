@@ -70,6 +70,7 @@
 
   // Storage of events & chat
   const eventLogs = [];
+  let boundLocalPreviewTrack = null;
 
   // Helper to load Supabase JS SDK dynamically
   async function loadSupabase(callback) {
@@ -180,14 +181,39 @@
 
   function attachLocalPreview(track, videoEl) {
     if (!track || !videoEl) return;
+    const mediaTrack = track.mediaStreamTrack;
+    if (!mediaTrack) return;
+
+    // Skip re-bind — re-attaching causes iOS WKWebView preview flicker.
+    if (
+      boundLocalPreviewTrack === mediaTrack &&
+      videoEl.srcObject &&
+      videoEl.srcObject.getVideoTracks()[0] === mediaTrack
+    ) {
+      videoEl.classList.remove("hidden");
+      return;
+    }
+    boundLocalPreviewTrack = mediaTrack;
+
     videoEl.muted = true;
     videoEl.setAttribute("playsinline", "true");
     videoEl.setAttribute("webkit-playsinline", "true");
-    try {
-      track.attach(videoEl);
-    } catch (e) {
-      console.warn("[JustUS] local preview attach failed:", e);
+
+    if (IS_IOS) {
+      // LiveKit track.attach() flickers in Shadow DOM on WKWebView — use srcObject only.
+      try {
+        videoEl.srcObject = new MediaStream([mediaTrack]);
+      } catch (e) {
+        console.warn("[JustUS] local srcObject failed:", e);
+      }
+    } else {
+      try {
+        track.attach(videoEl);
+      } catch (e) {
+        console.warn("[JustUS] local preview attach failed:", e);
+      }
     }
+
     videoEl.classList.remove("hidden");
     videoEl.play().catch(() => {
       setTimeout(() => videoEl.play().catch(() => {}), 150);

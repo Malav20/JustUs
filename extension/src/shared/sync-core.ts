@@ -103,6 +103,25 @@ export function computeHeartbeatCorrection(input: HeartbeatInput): HeartbeatCorr
   return correction;
 }
 
+/**
+ * Heartbeat drift correction only — never changes play/pause.
+ * Skips entirely when local and remote play states disagree; explicit
+ * PLAY/PAUSE events are the sole authority for playback state in shared-control mode.
+ */
+export function computeHeartbeatPositionCorrection(
+  input: HeartbeatInput,
+  localIsPlaying: boolean
+): HeartbeatCorrection {
+  if (localIsPlaying !== input.isPlaying) {
+    return {};
+  }
+  const full = computeHeartbeatCorrection(input);
+  const correction: HeartbeatCorrection = {};
+  if (full.seekTo !== undefined) correction.seekTo = full.seekTo;
+  if (full.playbackRate !== undefined) correction.playbackRate = full.playbackRate;
+  return correction;
+}
+
 /** Target position for a discrete remote PLAY, crediting small latency. */
 export function playTargetTime(payloadTime: number, sentAt: number, now: number): number {
   const latency = Math.max(0, (now - sentAt) / 1000);

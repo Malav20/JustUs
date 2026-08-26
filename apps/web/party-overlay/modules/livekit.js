@@ -10,6 +10,29 @@
   let isCamEnabled = true;
   let currentFacingMode = "user";
   let isLiveKitConnecting = false;
+  let livekitReconnectTimer = null;
+  let autoVideoCallScheduled = false;
+  let userInitiatedLeave = false;
+
+  function getLiveKitIdentity() {
+    const storageKey = "justus_livekit_identity";
+    try {
+      let id = sessionStorage.getItem(storageKey);
+      if (!id) {
+        id = currentUserName + "_" + Math.random().toString(36).slice(2, 9);
+        sessionStorage.setItem(storageKey, id);
+      }
+      return id;
+    } catch (e) {
+      return currentUserName + "_" + Math.random().toString(36).slice(2, 9);
+    }
+  }
+
+  function clearLiveKitIdentity() {
+    try {
+      sessionStorage.removeItem("justus_livekit_identity");
+    } catch (e) {}
+  }
 
   function loadLiveKitSDK(callback) {
     if (window.LivekitClient) {
@@ -45,7 +68,7 @@
         resetControlsHideTimer();
       }
       if (!livekitRoom && !isLiveKitConnecting) {
-        connectLiveKitCall();
+        connectLiveKitCall(false);
       }
     } else {
       videoWindow.classList.add("hidden");
@@ -99,16 +122,24 @@
     }
   }
 
-  async function connectLiveKitCall() {
+  async function connectLiveKitCall(isReconnect) {
     if (!activeRoomId || isLiveKitConnecting) return;
+    if (livekitRoom && livekitRoom.state === "connected") return;
+
     isLiveKitConnecting = true;
+    userInitiatedLeave = false;
     const waitingText = shadow.getElementById("ju-waiting-text");
     if (waitingText) waitingText.textContent = "Connecting video call...";
 
     loadLiveKitSDK(async () => {
       try {
-        const participantId = currentUserName;
-        const tokenResult = await fetchLiveKitTokenWithRetry(activeRoomId, participantId, currentUserName, isHost);
+        const participantId = getLiveKitIdentity();
+        const tokenResult = await fetchLiveKitTokenWithRetry(
+          activeRoomId,
+          participantId,
+          currentUserName,
+          isHost
+        );
 
         if (!tokenResult || !tokenResult.token) {
           throw new Error("Could not connect to video server. Please check your network.");
@@ -167,34 +198,55 @@
         });
 
         room.on(window.LivekitClient.RoomEvent.Disconnected, () => {
-          leaveLiveKitCall();
+          onLiveKitDisconnected();
         });
 
         await room.connect(wsUrl, token);
         isVideoCallActive = true;
         updateVideoPillState();
 
-        // 1. Microphone first (stable order before 336f86d optimization)
-        try {
-          localAudioTrack = await window.LivekitClient.createLocalAudioTrack({
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          });
-          if (localAudioTrack) {
-            await room.localParticipant.publishTrack(localAudioTrack);
-          }
-        } catch (e) {
-          console.warn("[JustUS] Microphone setup notice:", e);
-        }
+        const hasLiveTracks =
+          isReconnect &&
+          localVideoTrack &&
+          localVideoTrack.mediaStreamTrack &&
+          localVideoTrack.mediaStreamTrack.readyState === "live";
 
-        // 2. Camera — direct attach + publish (proven on iOS WKWebView)
-        if (isCamEnabled) {
+        if (hasLiveTracks) {
           try {
-            await publishLocalCamera(room);
+            if (localAudioTrack) {
+              await room.localParticipant.publishTrack(localAudioTrack);
+            }
+            if (localVideoTrack && isCamEnabled) {
+              await room.localParticipant.publishTrack(localVideoTrack);
+              const localVideoEl = shadow.getElementById("ju-local-video");
+              if (localVideoEl) attachLocalPreview(localVideoTrack, localVideoEl);
+            }
           } catch (e) {
-            console.warn("[JustUS] Camera setup notice:", e);
-            addEventLog("⚠️ Camera unavailable — check app permissions", "System");
+            console.warn("[JustUS] LiveKit reconnect republish:", e);
+          }
+        } else {
+          // 1. Microphone first (stable order before 336f86d optimization)
+          try {
+            localAudioTrack = await window.LivekitClient.createLocalAudioTrack({
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            });
+            if (localAudioTrack) {
+              await room.localParticipant.publishTrack(localAudioTrack);
+            }
+          } catch (e) {
+            console.warn("[JustUS] Microphone setup notice:", e);
+          }
+
+          // 2. Camera — direct attach + publish (proven on iOS WKWebView)
+          if (isCamEnabled) {
+            try {
+              await publishLocalCamera(room);
+            } catch (e) {
+              console.warn("[JustUS] Camera setup notice:", e);
+              addEventLog("⚠️ Camera unavailable — check app permissions", "System");
+            }
           }
         }
 
@@ -224,7 +276,38 @@
     });
   }
 
+  function onLiveKitDisconnected() {
+    livekitRoom = null;
+    isVideoCallActive = false;
+    isLiveKitConnecting = false;
+    remoteVideoTrack = null;
+
+    if (remoteAudioEl) {
+      try {
+        remoteAudioEl.remove();
+      } catch (e) {}
+      remoteAudioEl = null;
+    }
+
+    updateVideoPillState();
+
+  // Do NOT stop camera/mic — tearing down media causes iOS preview flicker + reconnect spam.
+    if (!userInitiatedLeave && activeRoomId) {
+      clearTimeout(livekitReconnectTimer);
+      livekitReconnectTimer = setTimeout(() => {
+        if (!userInitiatedLeave && activeRoomId && !livekitRoom) {
+          connectLiveKitCall(true);
+        }
+      }, 2000);
+    }
+  }
+
   function leaveLiveKitCall() {
+    userInitiatedLeave = true;
+    clearTimeout(livekitReconnectTimer);
+    autoVideoCallScheduled = false;
+    clearLiveKitIdentity();
+    boundLocalPreviewTrack = null;
     isVideoCallActive = false;
     remoteVideoTrack = null;
     if (localAudioTrack) {
@@ -329,12 +412,14 @@
   }
 
   function scheduleAutoVideoCall() {
+    if (autoVideoCallScheduled || isVideoCallActive || isLiveKitConnecting) return;
+    autoVideoCallScheduled = true;
     setTimeout(() => {
       if (!activeRoomId || isVideoCallActive || isLiveKitConnecting) return;
       if (videoWindow && videoWindow.classList.contains("hidden")) {
         toggleVideoCallWindow();
-      } else {
-        connectLiveKitCall();
+      } else if (!livekitRoom) {
+        connectLiveKitCall(false);
       }
     }, 700);
   }

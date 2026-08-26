@@ -85,8 +85,7 @@ export function startPartySession(session: RoomSession) {
       sidebarUI.addParticipantJoinLog(userName, color || "#4ECDC4");
     },
     onParticipantLeft: (userName) => {
-      console.log(`[Teleparty] ${userName} left party!`);
-      sidebarUI.addEventLog(`${userName} left the party 👋`, "#FF6B6B");
+      sidebarUI.addParticipantLeaveLog(userName);
     },
     onParticipantCountChange: (count) => {
       sidebarUI.setParticipantCount(count);

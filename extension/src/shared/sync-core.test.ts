@@ -4,6 +4,7 @@ import {
   clampLatencySeconds,
   expectedRemoteTime,
   computeHeartbeatCorrection,
+  computeHeartbeatPositionCorrection,
   playTargetTime,
   shouldSeek,
 } from "./sync-core";
@@ -83,6 +84,23 @@ describe("playTargetTime", () => {
   });
   it("ignores absurd latency (stale event)", () => {
     expect(playTargetTime(100, 0, 10_000)).toBe(100);
+  });
+});
+
+describe("computeHeartbeatPositionCorrection", () => {
+  const base = { payloadTime: 100, isPlaying: true, sentAt: 1000, now: 1000 };
+
+  it("returns position corrections when play states match", () => {
+    const c = computeHeartbeatPositionCorrection({ ...base, currentTime: 50 }, true);
+    expect(c.seekTo).toBeCloseTo(100);
+    expect(c.ensurePlaying).toBeUndefined();
+    expect(c.ensurePaused).toBeUndefined();
+  });
+
+  it("skips correction when play states disagree", () => {
+    const c = computeHeartbeatPositionCorrection({ ...base, currentTime: 50 }, false);
+    expect(c.seekTo).toBeUndefined();
+    expect(c.playbackRate).toBeUndefined();
   });
 });
 

@@ -74,6 +74,7 @@
 
   // Storage of events & chat
   const eventLogs = [];
+  let boundLocalPreviewTrack = null;
 
   // Helper to load Supabase JS SDK dynamically
   async function loadSupabase(callback) {
@@ -184,14 +185,39 @@
 
   function attachLocalPreview(track, videoEl) {
     if (!track || !videoEl) return;
+    const mediaTrack = track.mediaStreamTrack;
+    if (!mediaTrack) return;
+
+    // Skip re-bind — re-attaching causes iOS WKWebView preview flicker.
+    if (
+      boundLocalPreviewTrack === mediaTrack &&
+      videoEl.srcObject &&
+      videoEl.srcObject.getVideoTracks()[0] === mediaTrack
+    ) {
+      videoEl.classList.remove("hidden");
+      return;
+    }
+    boundLocalPreviewTrack = mediaTrack;
+
     videoEl.muted = true;
     videoEl.setAttribute("playsinline", "true");
     videoEl.setAttribute("webkit-playsinline", "true");
-    try {
-      track.attach(videoEl);
-    } catch (e) {
-      console.warn("[JustUS] local preview attach failed:", e);
+
+    if (IS_IOS) {
+      // LiveKit track.attach() flickers in Shadow DOM on WKWebView — use srcObject only.
+      try {
+        videoEl.srcObject = new MediaStream([mediaTrack]);
+      } catch (e) {
+        console.warn("[JustUS] local srcObject failed:", e);
+      }
+    } else {
+      try {
+        track.attach(videoEl);
+      } catch (e) {
+        console.warn("[JustUS] local preview attach failed:", e);
+      }
     }
+
     videoEl.classList.remove("hidden");
     videoEl.play().catch(() => {
       setTimeout(() => videoEl.play().catch(() => {}), 150);
@@ -1402,6 +1428,29 @@
   let isCamEnabled = true;
   let currentFacingMode = "user";
   let isLiveKitConnecting = false;
+  let livekitReconnectTimer = null;
+  let autoVideoCallScheduled = false;
+  let userInitiatedLeave = false;
+
+  function getLiveKitIdentity() {
+    const storageKey = "justus_livekit_identity";
+    try {
+      let id = sessionStorage.getItem(storageKey);
+      if (!id) {
+        id = currentUserName + "_" + Math.random().toString(36).slice(2, 9);
+        sessionStorage.setItem(storageKey, id);
+      }
+      return id;
+    } catch (e) {
+      return currentUserName + "_" + Math.random().toString(36).slice(2, 9);
+    }
+  }
+
+  function clearLiveKitIdentity() {
+    try {
+      sessionStorage.removeItem("justus_livekit_identity");
+    } catch (e) {}
+  }
 
   function loadLiveKitSDK(callback) {
     if (window.LivekitClient) {
@@ -1437,7 +1486,7 @@
         resetControlsHideTimer();
       }
       if (!livekitRoom && !isLiveKitConnecting) {
-        connectLiveKitCall();
+        connectLiveKitCall(false);
       }
     } else {
       videoWindow.classList.add("hidden");
@@ -1491,16 +1540,24 @@
     }
   }
 
-  async function connectLiveKitCall() {
+  async function connectLiveKitCall(isReconnect) {
     if (!activeRoomId || isLiveKitConnecting) return;
+    if (livekitRoom && livekitRoom.state === "connected") return;
+
     isLiveKitConnecting = true;
+    userInitiatedLeave = false;
     const waitingText = shadow.getElementById("ju-waiting-text");
     if (waitingText) waitingText.textContent = "Connecting video call...";
 
     loadLiveKitSDK(async () => {
       try {
-        const participantId = currentUserName;
-        const tokenResult = await fetchLiveKitTokenWithRetry(activeRoomId, participantId, currentUserName, isHost);
+        const participantId = getLiveKitIdentity();
+        const tokenResult = await fetchLiveKitTokenWithRetry(
+          activeRoomId,
+          participantId,
+          currentUserName,
+          isHost
+        );
 
         if (!tokenResult || !tokenResult.token) {
           throw new Error("Could not connect to video server. Please check your network.");
@@ -1559,34 +1616,55 @@
         });
 
         room.on(window.LivekitClient.RoomEvent.Disconnected, () => {
-          leaveLiveKitCall();
+          onLiveKitDisconnected();
         });
 
         await room.connect(wsUrl, token);
         isVideoCallActive = true;
         updateVideoPillState();
 
-        // 1. Microphone first (stable order before 336f86d optimization)
-        try {
-          localAudioTrack = await window.LivekitClient.createLocalAudioTrack({
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          });
-          if (localAudioTrack) {
-            await room.localParticipant.publishTrack(localAudioTrack);
-          }
-        } catch (e) {
-          console.warn("[JustUS] Microphone setup notice:", e);
-        }
+        const hasLiveTracks =
+          isReconnect &&
+          localVideoTrack &&
+          localVideoTrack.mediaStreamTrack &&
+          localVideoTrack.mediaStreamTrack.readyState === "live";
 
-        // 2. Camera — direct attach + publish (proven on iOS WKWebView)
-        if (isCamEnabled) {
+        if (hasLiveTracks) {
           try {
-            await publishLocalCamera(room);
+            if (localAudioTrack) {
+              await room.localParticipant.publishTrack(localAudioTrack);
+            }
+            if (localVideoTrack && isCamEnabled) {
+              await room.localParticipant.publishTrack(localVideoTrack);
+              const localVideoEl = shadow.getElementById("ju-local-video");
+              if (localVideoEl) attachLocalPreview(localVideoTrack, localVideoEl);
+            }
           } catch (e) {
-            console.warn("[JustUS] Camera setup notice:", e);
-            addEventLog("⚠️ Camera unavailable — check app permissions", "System");
+            console.warn("[JustUS] LiveKit reconnect republish:", e);
+          }
+        } else {
+          // 1. Microphone first (stable order before 336f86d optimization)
+          try {
+            localAudioTrack = await window.LivekitClient.createLocalAudioTrack({
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            });
+            if (localAudioTrack) {
+              await room.localParticipant.publishTrack(localAudioTrack);
+            }
+          } catch (e) {
+            console.warn("[JustUS] Microphone setup notice:", e);
+          }
+
+          // 2. Camera — direct attach + publish (proven on iOS WKWebView)
+          if (isCamEnabled) {
+            try {
+              await publishLocalCamera(room);
+            } catch (e) {
+              console.warn("[JustUS] Camera setup notice:", e);
+              addEventLog("⚠️ Camera unavailable — check app permissions", "System");
+            }
           }
         }
 
@@ -1616,7 +1694,38 @@
     });
   }
 
+  function onLiveKitDisconnected() {
+    livekitRoom = null;
+    isVideoCallActive = false;
+    isLiveKitConnecting = false;
+    remoteVideoTrack = null;
+
+    if (remoteAudioEl) {
+      try {
+        remoteAudioEl.remove();
+      } catch (e) {}
+      remoteAudioEl = null;
+    }
+
+    updateVideoPillState();
+
+  // Do NOT stop camera/mic — tearing down media causes iOS preview flicker + reconnect spam.
+    if (!userInitiatedLeave && activeRoomId) {
+      clearTimeout(livekitReconnectTimer);
+      livekitReconnectTimer = setTimeout(() => {
+        if (!userInitiatedLeave && activeRoomId && !livekitRoom) {
+          connectLiveKitCall(true);
+        }
+      }, 2000);
+    }
+  }
+
   function leaveLiveKitCall() {
+    userInitiatedLeave = true;
+    clearTimeout(livekitReconnectTimer);
+    autoVideoCallScheduled = false;
+    clearLiveKitIdentity();
+    boundLocalPreviewTrack = null;
     isVideoCallActive = false;
     remoteVideoTrack = null;
     if (localAudioTrack) {
@@ -1721,12 +1830,14 @@
   }
 
   function scheduleAutoVideoCall() {
+    if (autoVideoCallScheduled || isVideoCallActive || isLiveKitConnecting) return;
+    autoVideoCallScheduled = true;
     setTimeout(() => {
       if (!activeRoomId || isVideoCallActive || isLiveKitConnecting) return;
       if (videoWindow && videoWindow.classList.contains("hidden")) {
         toggleVideoCallWindow();
-      } else {
-        connectLiveKitCall();
+      } else if (!livekitRoom) {
+        connectLiveKitCall(false);
       }
     }, 700);
   }
@@ -2321,34 +2432,43 @@ function shouldSeek(currentTime, targetTime, threshold = SYNC.EVENT_SEEK_THRESHO
   return targetTime > 1.0 && Math.abs(currentTime - targetTime) > threshold;
 }
 
-function computeHeartbeatCorrection(input) {
-  const latency = clampLatencySeconds(input.sentAt, input.now, SYNC.HEARTBEAT_MAX_LATENCY_S);
-  const expected = expectedRemoteTime(input.payloadTime, input.isPlaying, latency);
-  const delta = expected - input.currentTime;
-  const drift = Math.abs(delta);
-  const correction = {};
+  function computeHeartbeatCorrection(input) {
+    const latency = clampLatencySeconds(input.sentAt, input.now, SYNC.HEARTBEAT_MAX_LATENCY_S);
+    const expected = expectedRemoteTime(input.payloadTime, input.isPlaying, latency);
+    const delta = expected - input.currentTime;
+    const drift = Math.abs(delta);
+    const correction = {};
 
-  if (input.isPlaying) {
-    correction.ensurePlaying = true;
-    if (drift > SYNC.HARD_SEEK_WHILE_PLAYING_S && expected > SYNC.MIN_MEANINGFUL_TIME_S) {
-      correction.seekTo = expected;
-      correction.playbackRate = 1.0;
-    } else if (delta > SYNC.RATE_DEADBAND_S) {
-      correction.playbackRate = SYNC.RATE_FAST;
-    } else if (delta < -SYNC.RATE_DEADBAND_S) {
-      correction.playbackRate = SYNC.RATE_SLOW;
+    if (input.isPlaying) {
+      correction.ensurePlaying = true;
+      if (drift > SYNC.HARD_SEEK_WHILE_PLAYING_S && expected > SYNC.MIN_MEANINGFUL_TIME_S) {
+        correction.seekTo = expected;
+        correction.playbackRate = 1.0;
+      } else if (delta > SYNC.RATE_DEADBAND_S) {
+        correction.playbackRate = SYNC.RATE_FAST;
+      } else if (delta < -SYNC.RATE_DEADBAND_S) {
+        correction.playbackRate = SYNC.RATE_SLOW;
+      } else {
+        correction.playbackRate = 1.0;
+      }
     } else {
       correction.playbackRate = 1.0;
+      correction.ensurePaused = true;
+      if (drift > SYNC.HARD_SEEK_WHILE_PAUSED_S && expected > SYNC.MIN_MEANINGFUL_TIME_S) {
+        correction.seekTo = expected;
+      }
     }
-  } else {
-    correction.playbackRate = 1.0;
-    correction.ensurePaused = true;
-    if (drift > SYNC.HARD_SEEK_WHILE_PAUSED_S && expected > SYNC.MIN_MEANINGFUL_TIME_S) {
-      correction.seekTo = expected;
-    }
+    return correction;
   }
-  return correction;
-}
+
+  function computeHeartbeatPositionCorrection(input, localIsPlaying) {
+    if (localIsPlaying !== input.isPlaying) return {};
+    const full = computeHeartbeatCorrection(input);
+    const correction = {};
+    if (full.seekTo !== undefined) correction.seekTo = full.seekTo;
+    if (full.playbackRate !== undefined) correction.playbackRate = full.playbackRate;
+    return correction;
+  }
 
   let lastUserActionTime = 0;
 
@@ -2356,39 +2476,51 @@ function computeHeartbeatCorrection(input) {
     setTimeout(() => (isSyncActionInProgress = false), SYNC.SYNC_ACTION_COOLDOWN_MS);
   }
 
+  function applySyncPlayerAction(fn) {
+    isSyncActionInProgress = true;
+    try {
+      fn();
+    } finally {
+      releaseSyncLock();
+    }
+  }
+
   function handleRemotePlay(payload) {
+    if (payload.sender === currentUserName) return;
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
     addEventLog(`▶️ Played video at ${timeStr}`, sender);
     lastUserActionTime = Date.now();
-    isSyncActionInProgress = true;
-    const current = getCurrentVideoTime();
-    const now = Date.now();
-    const target = playTargetTime(payload.time, payload.sentAt || now, now);
-    if (shouldSeek(current, target)) {
-      seekVideo(target);
-    }
-    playVideo();
-    releaseSyncLock();
+    applySyncPlayerAction(() => {
+      const current = getCurrentVideoTime();
+      const now = Date.now();
+      const target = playTargetTime(payload.time, payload.sentAt || now, now);
+      if (shouldSeek(current, target)) {
+        seekVideo(target);
+      }
+      playVideo();
+    });
   }
 
   function handleRemotePause(payload) {
+    if (payload.sender === currentUserName) return;
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
     addEventLog(`⏸️ Paused video at ${timeStr}`, sender);
     lastUserActionTime = Date.now();
-    isSyncActionInProgress = true;
-    pauseVideo();
-    if (
-      payload.time > SYNC.MIN_MEANINGFUL_TIME_S &&
-      Math.abs(getCurrentVideoTime() - payload.time) > SYNC.HARD_SEEK_WHILE_PAUSED_S
-    ) {
-      seekVideo(payload.time);
-    }
-    releaseSyncLock();
+    applySyncPlayerAction(() => {
+      pauseVideo();
+      if (
+        payload.time > SYNC.MIN_MEANINGFUL_TIME_S &&
+        Math.abs(getCurrentVideoTime() - payload.time) > SYNC.HARD_SEEK_WHILE_PAUSED_S
+      ) {
+        seekVideo(payload.time);
+      }
+    });
   }
 
   function handleRemoteSeek(payload) {
+    if (payload.sender === currentUserName) return;
     if (!payload || payload.time < SYNC.MIN_MEANINGFUL_TIME_S) return;
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
@@ -2397,13 +2529,14 @@ function computeHeartbeatCorrection(input) {
 
     addEventLog(`⏩ Jumped to ${timeStr}`, sender);
     lastUserActionTime = Date.now();
-    isSyncActionInProgress = true;
-    seekVideo(payload.time);
-    releaseSyncLock();
+    applySyncPlayerAction(() => {
+      seekVideo(payload.time);
+    });
   }
 
   function handleRemoteHeartbeat(payload) {
-    if (isSyncActionInProgress || isHost) return;
+    if (payload.sender === currentUserName) return;
+    if (isSyncActionInProgress) return;
 
     if (Date.now() - lastUserActionTime < SYNC.USER_ACTION_GRACE_MS) return;
 
@@ -2419,38 +2552,47 @@ function computeHeartbeatCorrection(input) {
     }
 
     const now = Date.now();
-    const correction = computeHeartbeatCorrection({
-      currentTime: getCurrentVideoTime(),
-      payloadTime: payload.time,
-      isPlaying: !!payload.isPlaying,
-      sentAt: payload.sentAt || now,
-      now,
+    const localPlaying = isVideoPlaying();
+    const remotePlaying = !!payload.isPlaying;
+
+    if (!isInitialSyncCompleted) {
+      isInitialSyncCompleted = true;
+      applySyncPlayerAction(() => {
+        const target = playTargetTime(payload.time, payload.sentAt || now, now);
+        if (target > SYNC.MIN_MEANINGFUL_TIME_S) {
+          seekVideo(target);
+        }
+        if (remotePlaying) playVideo();
+        else pauseVideo();
+      });
+      return;
+    }
+
+    const correction = computeHeartbeatPositionCorrection(
+      {
+        currentTime: getCurrentVideoTime(),
+        payloadTime: payload.time,
+        isPlaying: remotePlaying,
+        sentAt: payload.sentAt || now,
+        now,
+      },
+      localPlaying
+    );
+
+    applySyncPlayerAction(() => {
+      if (correction.seekTo !== undefined) {
+        seekVideo(correction.seekTo);
+        if (correction.playbackRate !== undefined) {
+          setPlaybackRate(correction.playbackRate);
+        }
+      } else if (correction.playbackRate !== undefined) {
+        setPlaybackRate(correction.playbackRate);
+      }
     });
-
-    if (correction.ensurePlaying && !isVideoPlaying()) {
-      playVideo();
-    }
-
-    if (correction.seekTo !== undefined) {
-      seekVideo(correction.seekTo);
-      if (correction.ensurePaused && isVideoPlaying()) {
-        pauseVideo();
-      }
-      if (correction.playbackRate !== undefined) {
-        setPlaybackRate(correction.playbackRate);
-      }
-    } else {
-      if (correction.playbackRate !== undefined) {
-        setPlaybackRate(correction.playbackRate);
-      }
-      if (correction.ensurePaused && isVideoPlaying()) {
-        pauseVideo();
-      }
-    }
   }
 
   function handleRequestState(payload) {
-    if (!activeChannel) return;
+    if (!activeChannel || payload.sender === currentUserName) return;
     activeChannel.send({
       type: "broadcast",
       event: "STATE_RESPONSE",
@@ -2460,6 +2602,7 @@ function computeHeartbeatCorrection(input) {
         videoUrl: window.location.href,
         title: document.title,
         sender: currentUserName,
+        isHost: isHost,
         sentAt: Date.now(),
       },
     });
@@ -2467,6 +2610,7 @@ function computeHeartbeatCorrection(input) {
 
   function handleStateResponse(payload) {
     if (isInitialSyncCompleted) return;
+    if (payload.sender === currentUserName) return;
     isInitialSyncCompleted = true;
 
     if (payload.videoUrl && !isHost) {
@@ -2481,12 +2625,14 @@ function computeHeartbeatCorrection(input) {
     }
 
     const now = Date.now();
-    const target = playTargetTime(payload.time, payload.sentAt || now, now);
-    if (target > SYNC.MIN_MEANINGFUL_TIME_S) {
-      seekVideo(target);
-    }
-    if (payload.isPlaying) playVideo();
-    else pauseVideo();
+    applySyncPlayerAction(() => {
+      const target = playTargetTime(payload.time, payload.sentAt || now, now);
+      if (target > SYNC.MIN_MEANINGFUL_TIME_S) {
+        seekVideo(target);
+      }
+      if (payload.isPlaying) playVideo();
+      else pauseVideo();
+    });
   }
 
   function startHeartbeat() {
@@ -2505,6 +2651,7 @@ function computeHeartbeatCorrection(input) {
           videoUrl: window.location.href,
           title: document.title,
           sender: currentUserName,
+          isHost: isHost,
           sentAt: Date.now(),
         },
       });
@@ -2529,7 +2676,7 @@ function computeHeartbeatCorrection(input) {
       activeChannel.send({
         type: "broadcast",
         event: "PLAY",
-        payload: { time, isPlaying: true, sender: currentUserName, sentAt: Date.now() },
+        payload: { time, isPlaying: true, sender: currentUserName, isHost: isHost, sentAt: Date.now() },
       });
       addEventLog(`▶️ You played the video at ${formatTime(time)}`, currentUserName);
     });
@@ -2546,7 +2693,7 @@ function computeHeartbeatCorrection(input) {
       activeChannel.send({
         type: "broadcast",
         event: "PAUSE",
-        payload: { time, isPlaying: false, sender: currentUserName, sentAt: Date.now() },
+        payload: { time, isPlaying: false, sender: currentUserName, isHost: isHost, sentAt: Date.now() },
       });
       addEventLog(`⏸️ You paused the video at ${formatTime(time)}`, currentUserName);
     });
@@ -2567,7 +2714,7 @@ function computeHeartbeatCorrection(input) {
       activeChannel.send({
         type: "broadcast",
         event: "SEEK",
-        payload: { time, isPlaying: !v.paused, sender: currentUserName, sentAt: Date.now() },
+        payload: { time, isPlaying: !v.paused, sender: currentUserName, isHost: isHost, sentAt: Date.now() },
       });
       addEventLog(`⏩ You jumped to ${formatTime(time)}`, currentUserName);
     });

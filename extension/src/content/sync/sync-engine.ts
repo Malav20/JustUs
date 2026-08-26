@@ -7,6 +7,7 @@ import {
   clampLatencySeconds,
   expectedRemoteTime,
   computeHeartbeatCorrection,
+  computeHeartbeatPositionCorrection,
   playTargetTime,
   shouldSeek,
 } from "../../shared/sync-core";
@@ -38,6 +39,7 @@ export class SyncEngine {
   private lastUserActionTime = 0;
   private heartbeatTimer: any = null;
   private stateRequestRetryTimer: any = null;
+  private presenceLeaveTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
   // Screen Wake Lock Sentinel
   private wakeLockRef: { current: WakeLockSentinel | null } = { current: null };
@@ -179,15 +181,28 @@ export class SyncEngine {
       .on("presence", { event: "join" }, ({ key, newPresences }) => {
         newPresences.forEach((p: any) => {
           if (p.userName && p.userName !== this.userName) {
+            const pending = this.presenceLeaveTimers.get(p.userName);
+            if (pending) {
+              clearTimeout(pending);
+              this.presenceLeaveTimers.delete(p.userName);
+            }
             if (this.onParticipantJoined) this.onParticipantJoined(p.userName, p.color);
           }
         });
       })
       .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
         leftPresences.forEach((p: any) => {
-          if (p.userName && p.userName !== this.userName) {
-            if (this.onParticipantLeft) this.onParticipantLeft(p.userName);
-          }
+          if (!p.userName || p.userName === this.userName) return;
+          const name = p.userName;
+          const existing = this.presenceLeaveTimers.get(name);
+          if (existing) clearTimeout(existing);
+          this.presenceLeaveTimers.set(
+            name,
+            setTimeout(() => {
+              this.presenceLeaveTimers.delete(name);
+              if (this.onParticipantLeft) this.onParticipantLeft(name);
+            }, 5000)
+          );
         });
       })
       .subscribe((status) => {
@@ -287,9 +302,8 @@ export class SyncEngine {
   }
 
   private handleRequestState(payload: { sender: string; sentAt: number }) {
-    if (!this.channel || !this.isInitialSyncCompleted) return;
+    if (!this.channel || payload.sender === this.userName) return;
 
-    // Send current playback status to the newly joined peer
     console.log(`[JustUs SyncEngine] Sending current playback state to new peer ${payload.sender}`);
     this.channel.send({
       type: "broadcast",
@@ -300,12 +314,14 @@ export class SyncEngine {
         videoUrl: window.location.href,
         sentAt: Date.now(),
         sender: this.userName,
+        isHost: this.isHost,
       },
     });
   }
 
   private handleStateResponse(payload: SyncPayload) {
     if (this.isInitialSyncCompleted) return;
+    if (payload.sender === this.userName) return;
     console.log(`[JustUs SyncEngine] Initial state handshake received from ${payload.sender}:`, payload);
     
     this.isInitialSyncCompleted = true;
@@ -352,6 +368,7 @@ export class SyncEngine {
       isPlaying: this.adapter.isPlaying(),
       sentAt: Date.now(),
       sender: this.userName,
+      isHost: this.isHost,
     };
 
     if (event === "play") {
@@ -401,6 +418,7 @@ export class SyncEngine {
   }
 
   private handleRemotePlay(payload: SyncPayload) {
+    if (payload.sender === this.userName) return;
     const senderName = payload.sender || "Friend";
     console.log(`[JustUs] Remote PLAY received from ${senderName} at ${payload.time.toFixed(2)}s`);
     this.isInitialSyncCompleted = true;
@@ -417,6 +435,7 @@ export class SyncEngine {
   }
 
   private handleRemotePause(payload: SyncPayload) {
+    if (payload.sender === this.userName) return;
     const senderName = payload.sender || "Friend";
     console.log(`[JustUs] Remote PAUSE received from ${senderName} at ${payload.time.toFixed(2)}s`);
     this.isInitialSyncCompleted = true;
@@ -432,6 +451,7 @@ export class SyncEngine {
   }
 
   private handleRemoteSeek(payload: SyncPayload) {
+    if (payload.sender === this.userName) return;
     if (!payload || payload.time <= 1.0) return;
     const current = this.adapter.getCurrentTime();
     if (Math.abs(current - payload.time) < 0.35) return;
@@ -447,6 +467,7 @@ export class SyncEngine {
   }
 
   private handleRemoteHeartbeat(payload: SyncPayload) {
+    if (payload.sender === this.userName) return;
     if (this.isSyncActionInProgress) return;
 
     // Grace window: If an explicit play/pause/seek occurred in the last 3.5s,
@@ -493,37 +514,27 @@ export class SyncEngine {
       return;
     }
 
-    // Decide the correction purely (see sync-core), then apply it to the player.
-    const correction = computeHeartbeatCorrection({
-      currentTime: this.adapter.getCurrentTime(),
-      payloadTime: payload.time,
-      isPlaying: !!payload.isPlaying,
-      sentAt: payload.sentAt,
-      now,
-    });
-
-    if (correction.ensurePlaying && !this.adapter.isPlaying()) {
-      this.withSyncLock(async () => { await this.adapter.play(); });
-    }
+    // Position drift only — play/pause is driven by explicit PLAY/PAUSE events.
+    const correction = computeHeartbeatPositionCorrection(
+      {
+        currentTime: this.adapter.getCurrentTime(),
+        payloadTime: payload.time,
+        isPlaying: !!payload.isPlaying,
+        sentAt: payload.sentAt,
+        now,
+      },
+      this.adapter.isPlaying()
+    );
 
     if (correction.seekTo !== undefined) {
       const target = correction.seekTo;
       const rate = correction.playbackRate;
-      const ensurePaused = correction.ensurePaused;
       this.withSyncLock(async () => {
         await this.adapter.seek(target);
-        if (ensurePaused && this.adapter.isPlaying()) {
-          await this.adapter.pause();
-        }
         if (rate !== undefined) this.adapter.setPlaybackRate(rate);
       });
-    } else {
-      if (correction.playbackRate !== undefined) {
-        this.adapter.setPlaybackRate(correction.playbackRate);
-      }
-      if (correction.ensurePaused && this.adapter.isPlaying()) {
-        this.withSyncLock(async () => { await this.adapter.pause(); });
-      }
+    } else if (correction.playbackRate !== undefined) {
+      this.adapter.setPlaybackRate(correction.playbackRate);
     }
   }
 
@@ -542,6 +553,7 @@ export class SyncEngine {
           videoUrl: window.location.href,
           sentAt: Date.now(),
           sender: this.userName,
+          isHost: this.isHost,
         },
       });
     }, SYNC.HEARTBEAT_INTERVAL_MS);

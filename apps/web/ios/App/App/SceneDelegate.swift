@@ -34,7 +34,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
             let userScriptSource = """
             (function() {
                 var s = document.createElement('script');
-                s.src = 'https://just-us-web.vercel.app/party-overlay.js?v=ios-camera-fix-1';
+                s.src = 'https://just-us-web.vercel.app/party-overlay.js?v=ios-camera-fix-2';
                 (document.head || document.documentElement).appendChild(s);
             })();
             """
@@ -183,7 +183,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
                             return;
                         }
                         var s = document.createElement('script');
-                        s.src = 'https://just-us-web.vercel.app/party-overlay.js?v=ios-camera-fix-1&t=' + Date.now();
+                        s.src = 'https://just-us-web.vercel.app/party-overlay.js?v=ios-camera-fix-2&t=' + Date.now();
                         (document.head || document.documentElement).appendChild(s);
                     })();
                     """

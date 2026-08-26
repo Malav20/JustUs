@@ -5,39 +5,51 @@
     setTimeout(() => (isSyncActionInProgress = false), SYNC.SYNC_ACTION_COOLDOWN_MS);
   }
 
+  function applySyncPlayerAction(fn) {
+    isSyncActionInProgress = true;
+    try {
+      fn();
+    } finally {
+      releaseSyncLock();
+    }
+  }
+
   function handleRemotePlay(payload) {
+    if (payload.sender === currentUserName) return;
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
     addEventLog(`▶️ Played video at ${timeStr}`, sender);
     lastUserActionTime = Date.now();
-    isSyncActionInProgress = true;
-    const current = getCurrentVideoTime();
-    const now = Date.now();
-    const target = playTargetTime(payload.time, payload.sentAt || now, now);
-    if (shouldSeek(current, target)) {
-      seekVideo(target);
-    }
-    playVideo();
-    releaseSyncLock();
+    applySyncPlayerAction(() => {
+      const current = getCurrentVideoTime();
+      const now = Date.now();
+      const target = playTargetTime(payload.time, payload.sentAt || now, now);
+      if (shouldSeek(current, target)) {
+        seekVideo(target);
+      }
+      playVideo();
+    });
   }
 
   function handleRemotePause(payload) {
+    if (payload.sender === currentUserName) return;
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
     addEventLog(`⏸️ Paused video at ${timeStr}`, sender);
     lastUserActionTime = Date.now();
-    isSyncActionInProgress = true;
-    pauseVideo();
-    if (
-      payload.time > SYNC.MIN_MEANINGFUL_TIME_S &&
-      Math.abs(getCurrentVideoTime() - payload.time) > SYNC.HARD_SEEK_WHILE_PAUSED_S
-    ) {
-      seekVideo(payload.time);
-    }
-    releaseSyncLock();
+    applySyncPlayerAction(() => {
+      pauseVideo();
+      if (
+        payload.time > SYNC.MIN_MEANINGFUL_TIME_S &&
+        Math.abs(getCurrentVideoTime() - payload.time) > SYNC.HARD_SEEK_WHILE_PAUSED_S
+      ) {
+        seekVideo(payload.time);
+      }
+    });
   }
 
   function handleRemoteSeek(payload) {
+    if (payload.sender === currentUserName) return;
     if (!payload || payload.time < SYNC.MIN_MEANINGFUL_TIME_S) return;
     const sender = payload.sender || "Friend";
     const timeStr = formatTime(payload.time);
@@ -46,13 +58,14 @@
 
     addEventLog(`⏩ Jumped to ${timeStr}`, sender);
     lastUserActionTime = Date.now();
-    isSyncActionInProgress = true;
-    seekVideo(payload.time);
-    releaseSyncLock();
+    applySyncPlayerAction(() => {
+      seekVideo(payload.time);
+    });
   }
 
   function handleRemoteHeartbeat(payload) {
-    if (isSyncActionInProgress || isHost) return;
+    if (payload.sender === currentUserName) return;
+    if (isSyncActionInProgress) return;
 
     if (Date.now() - lastUserActionTime < SYNC.USER_ACTION_GRACE_MS) return;
 
@@ -68,38 +81,47 @@
     }
 
     const now = Date.now();
-    const correction = computeHeartbeatCorrection({
-      currentTime: getCurrentVideoTime(),
-      payloadTime: payload.time,
-      isPlaying: !!payload.isPlaying,
-      sentAt: payload.sentAt || now,
-      now,
+    const localPlaying = isVideoPlaying();
+    const remotePlaying = !!payload.isPlaying;
+
+    if (!isInitialSyncCompleted) {
+      isInitialSyncCompleted = true;
+      applySyncPlayerAction(() => {
+        const target = playTargetTime(payload.time, payload.sentAt || now, now);
+        if (target > SYNC.MIN_MEANINGFUL_TIME_S) {
+          seekVideo(target);
+        }
+        if (remotePlaying) playVideo();
+        else pauseVideo();
+      });
+      return;
+    }
+
+    const correction = computeHeartbeatPositionCorrection(
+      {
+        currentTime: getCurrentVideoTime(),
+        payloadTime: payload.time,
+        isPlaying: remotePlaying,
+        sentAt: payload.sentAt || now,
+        now,
+      },
+      localPlaying
+    );
+
+    applySyncPlayerAction(() => {
+      if (correction.seekTo !== undefined) {
+        seekVideo(correction.seekTo);
+        if (correction.playbackRate !== undefined) {
+          setPlaybackRate(correction.playbackRate);
+        }
+      } else if (correction.playbackRate !== undefined) {
+        setPlaybackRate(correction.playbackRate);
+      }
     });
-
-    if (correction.ensurePlaying && !isVideoPlaying()) {
-      playVideo();
-    }
-
-    if (correction.seekTo !== undefined) {
-      seekVideo(correction.seekTo);
-      if (correction.ensurePaused && isVideoPlaying()) {
-        pauseVideo();
-      }
-      if (correction.playbackRate !== undefined) {
-        setPlaybackRate(correction.playbackRate);
-      }
-    } else {
-      if (correction.playbackRate !== undefined) {
-        setPlaybackRate(correction.playbackRate);
-      }
-      if (correction.ensurePaused && isVideoPlaying()) {
-        pauseVideo();
-      }
-    }
   }
 
   function handleRequestState(payload) {
-    if (!activeChannel) return;
+    if (!activeChannel || payload.sender === currentUserName) return;
     activeChannel.send({
       type: "broadcast",
       event: "STATE_RESPONSE",
@@ -109,6 +131,7 @@
         videoUrl: window.location.href,
         title: document.title,
         sender: currentUserName,
+        isHost: isHost,
         sentAt: Date.now(),
       },
     });
@@ -116,6 +139,7 @@
 
   function handleStateResponse(payload) {
     if (isInitialSyncCompleted) return;
+    if (payload.sender === currentUserName) return;
     isInitialSyncCompleted = true;
 
     if (payload.videoUrl && !isHost) {
@@ -130,12 +154,14 @@
     }
 
     const now = Date.now();
-    const target = playTargetTime(payload.time, payload.sentAt || now, now);
-    if (target > SYNC.MIN_MEANINGFUL_TIME_S) {
-      seekVideo(target);
-    }
-    if (payload.isPlaying) playVideo();
-    else pauseVideo();
+    applySyncPlayerAction(() => {
+      const target = playTargetTime(payload.time, payload.sentAt || now, now);
+      if (target > SYNC.MIN_MEANINGFUL_TIME_S) {
+        seekVideo(target);
+      }
+      if (payload.isPlaying) playVideo();
+      else pauseVideo();
+    });
   }
 
   function startHeartbeat() {
@@ -154,6 +180,7 @@
           videoUrl: window.location.href,
           title: document.title,
           sender: currentUserName,
+          isHost: isHost,
           sentAt: Date.now(),
         },
       });
@@ -178,7 +205,7 @@
       activeChannel.send({
         type: "broadcast",
         event: "PLAY",
-        payload: { time, isPlaying: true, sender: currentUserName, sentAt: Date.now() },
+        payload: { time, isPlaying: true, sender: currentUserName, isHost: isHost, sentAt: Date.now() },
       });
       addEventLog(`▶️ You played the video at ${formatTime(time)}`, currentUserName);
     });
@@ -195,7 +222,7 @@
       activeChannel.send({
         type: "broadcast",
         event: "PAUSE",
-        payload: { time, isPlaying: false, sender: currentUserName, sentAt: Date.now() },
+        payload: { time, isPlaying: false, sender: currentUserName, isHost: isHost, sentAt: Date.now() },
       });
       addEventLog(`⏸️ You paused the video at ${formatTime(time)}`, currentUserName);
     });
@@ -216,7 +243,7 @@
       activeChannel.send({
         type: "broadcast",
         event: "SEEK",
-        payload: { time, isPlaying: !v.paused, sender: currentUserName, sentAt: Date.now() },
+        payload: { time, isPlaying: !v.paused, sender: currentUserName, isHost: isHost, sentAt: Date.now() },
       });
       addEventLog(`⏩ You jumped to ${formatTime(time)}`, currentUserName);
     });

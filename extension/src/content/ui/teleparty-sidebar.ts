@@ -39,6 +39,11 @@ export class TelepartySidebarUI {
   private micVolume = 1.0;
   private isAudioSettingsOpen = false;
   private lastPlaybackLog = { action: "", user: "", time: "", at: 0 };
+  private isWebRTCConnecting = false;
+  private recentVideoCallLogs = new Map<string, number>();
+  private recentPartyLeaveLogs = new Map<string, number>();
+  private lastClipboardLogAt = 0;
+  private boundLocalPreviewTrack: MediaStreamTrack | null = null;
 
   private onSendMessage?: (text: string) => void;
   private onSendReaction?: (emoji: string) => void;
@@ -107,9 +112,31 @@ export class TelepartySidebarUI {
   public addParticipantJoinLog(userName: string, color = "#4ECDC4") {
     if (!userName || userName === this.userName || this.recentJoinedEvents.has(userName)) return;
     this.recentJoinedEvents.add(userName);
-    setTimeout(() => this.recentJoinedEvents.delete(userName), 8000);
+    setTimeout(() => this.recentJoinedEvents.delete(userName), 12000);
 
     this.addEventLog(`${this.escapeHtml(userName)} joined the party 🍿`, color);
+  }
+
+  public addParticipantLeaveLog(userName: string) {
+    if (!userName || userName === this.userName) return;
+    const now = Date.now();
+    const last = this.recentPartyLeaveLogs.get(userName) || 0;
+    if (now - last < 12000) return;
+    this.recentPartyLeaveLogs.set(userName, now);
+    this.addEventLog(`${this.escapeHtml(userName)} left the party 👋`, "#FF6B6B");
+  }
+
+  private logVideoCallEvent(kind: "join" | "leave", displayName: string) {
+    const key = `${kind}:${displayName}`;
+    const now = Date.now();
+    const last = this.recentVideoCallLogs.get(key) || 0;
+    if (now - last < 12000) return;
+    this.recentVideoCallLogs.set(key, now);
+    if (kind === "join") {
+      this.addEventLog(`${displayName} joined video call 📹`, "#4ECDC4");
+    } else {
+      this.addEventLog(`${displayName} left video call 📹`, "#FF6B6B");
+    }
   }
 
   public adjustPageLayout(open: boolean) {
@@ -132,7 +159,27 @@ export class TelepartySidebarUI {
   }
 
   /** Shadow DOM breaks LiveKit adaptiveStream visibility — keep it disabled. */
-  private attachVideoToElement(track: RemoteTrack | LocalVideoTrack, el: HTMLVideoElement) {
+  private attachVideoToElement(track: RemoteTrack | LocalVideoTrack, el: HTMLVideoElement, isLocal = false) {
+    const mediaTrack = track.mediaStreamTrack;
+    if (isLocal && mediaTrack) {
+      if (
+        this.boundLocalPreviewTrack === mediaTrack &&
+        el.srcObject instanceof MediaStream &&
+        el.srcObject.getVideoTracks()[0] === mediaTrack
+      ) {
+        return;
+      }
+      this.boundLocalPreviewTrack = mediaTrack;
+      el.muted = true;
+      el.setAttribute("playsinline", "true");
+      el.setAttribute("webkit-playsinline", "true");
+      try {
+        el.srcObject = new MediaStream([mediaTrack]);
+      } catch (e) {}
+      el.play().catch(() => setTimeout(() => el.play().catch(() => {}), 200));
+      return;
+    }
+
     try {
       track.detach();
     } catch (e) {}
@@ -141,7 +188,6 @@ export class TelepartySidebarUI {
     } catch (e) {
       console.warn("[Teleparty] track.attach failed:", e);
     }
-    const mediaTrack = track.mediaStreamTrack;
     if (mediaTrack) {
       try {
         el.srcObject = new MediaStream([mediaTrack]);
@@ -177,6 +223,10 @@ export class TelepartySidebarUI {
   }
 
   public async connectWebRTC(roomId: string, userName: string, isHost = false) {
+    if (this.livekitRoom?.state === ConnectionState.Connected) return;
+    if (this.isWebRTCConnecting) return;
+    this.isWebRTCConnecting = true;
+
     try {
       console.log(`[Teleparty] Connecting LiveKit WebRTC for ${roomId}...`);
       
@@ -215,19 +265,19 @@ export class TelepartySidebarUI {
         if (!track || track.kind !== Track.Kind.Video) return;
         this.localVideoTrack = track as LocalVideoTrack;
         if (this.localVideoEl) {
-          this.attachVideoToElement(track as LocalVideoTrack, this.localVideoEl);
+          this.attachVideoToElement(track as LocalVideoTrack, this.localVideoEl, true);
         }
         if (this.videoCallBoxEl) this.videoCallBoxEl.classList.remove("hidden");
       });
 
       room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
         const displayName = participant.name || participant.identity;
-        this.addEventLog(`${displayName} joined video call 📹`, "#4ECDC4");
+        this.logVideoCallEvent("join", displayName);
       });
 
       room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
         const displayName = participant.name || participant.identity;
-        this.addEventLog(`${displayName} left video call 📹`, "#FF6B6B");
+        this.logVideoCallEvent("leave", displayName);
         const waitingOverlay = this.shadow?.getElementById("waiting-overlay");
         if (waitingOverlay) waitingOverlay.classList.remove("hidden");
       });
@@ -292,6 +342,8 @@ export class TelepartySidebarUI {
       }
     } catch (err: any) {
       console.log("[JustUS] WebRTC standby:", err);
+    } finally {
+      this.isWebRTCConnecting = false;
     }
   }
 
@@ -445,9 +497,11 @@ export class TelepartySidebarUI {
     const copyInvite = () => {
       const inviteUrl = `${CONFIG.WEB_API_URL}/join/${this.roomId}`;
       navigator.clipboard.writeText(inviteUrl);
+      const now = Date.now();
+      if (now - this.lastClipboardLogAt < 3000) return;
+      this.lastClipboardLogAt = now;
       this.addEventLog(`Copied party invite URL to clipboard! 📋`, "#FFE66D");
     };
-    shareBtn?.addEventListener("click", copyInvite);
     if (shareBtn) bindInstantTap(shareBtn, copyInvite, { stopPropagation: true });
 
     // Leave party
