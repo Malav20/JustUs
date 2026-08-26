@@ -102,12 +102,11 @@
         const { token, wsUrl } = tokenResult;
 
         const room = new window.LivekitClient.Room({
-          adaptiveStream: IS_TOUCH_DEVICE,
+          adaptiveStream: false,
           dynacast: false,
           publishDefaults: {
             simulcast: false,
             videoCodec: "vp8",
-            degradationPreference: "maintain-framerate",
           },
           videoCaptureDefaults: {
             resolution: getVideoCapturePreset(),
@@ -121,7 +120,6 @@
             remoteVideoTrack = track;
             const remoteVideo = shadow.getElementById("ju-remote-video");
             if (remoteVideo) {
-              remoteVideo.muted = true;
               attachVideoTrack(track, remoteVideo);
               if (waitingOverlay) waitingOverlay.classList.add("hidden");
             }
@@ -160,21 +158,7 @@
         isVideoCallActive = true;
         updateVideoPillState();
 
-        // 1. Microphone track strictly with Acoustic Echo Cancellation & Noise Suppression
-        try {
-          localAudioTrack = await window.LivekitClient.createLocalAudioTrack({
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          });
-          if (localAudioTrack) {
-            await room.localParticipant.publishTrack(localAudioTrack);
-          }
-        } catch (e) {
-          console.warn("[JustUS] Microphone setup notice:", e);
-        }
-
-        // 2. Front/User Camera track — lighter preset on iPad for responsiveness
+        // 1. Camera first — some browsers struggle when audio is already open
         try {
           const capturePreset = getVideoCapturePreset();
           localVideoTrack = await window.LivekitClient.createLocalVideoTrack({
@@ -187,12 +171,40 @@
             localVideoEl.classList.remove("hidden");
           }
           if (localVideoTrack) {
-            await room.localParticipant.publishTrack(localVideoTrack);
+            await room.localParticipant.publishTrack(localVideoTrack, { simulcast: false });
           }
         } catch (e) {
           console.warn("[JustUS] Camera setup notice:", e);
           addEventLog("⚠️ Camera unavailable — check app permissions", "System");
         }
+
+        // 2. Microphone with echo cancellation
+        try {
+          localAudioTrack = await window.LivekitClient.createLocalAudioTrack({
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          });
+          if (localAudioTrack) {
+            await room.localParticipant.publishTrack(localAudioTrack);
+            await room.localParticipant.setMicrophoneEnabled(true);
+          }
+        } catch (e) {
+          console.warn("[JustUS] Microphone setup notice:", e);
+        }
+
+        // Bind video tracks that were already publishing when we joined
+        room.remoteParticipants.forEach((participant) => {
+          participant.videoTrackPublications.forEach((pub) => {
+            if (pub.track && pub.isSubscribed) {
+              remoteVideoTrack = pub.track;
+              const remoteVideo = shadow.getElementById("ju-remote-video");
+              if (remoteVideo) attachVideoTrack(pub.track, remoteVideo);
+              const waitingOverlay = shadow.getElementById("ju-video-waiting");
+              if (waitingOverlay) waitingOverlay.classList.add("hidden");
+            }
+          });
+        });
 
         if (waitingText) waitingText.textContent = "Waiting for friend to join call...";
       } catch (err) {
@@ -277,7 +289,7 @@
         } else {
           if (localVideoEl) {
             localVideoEl.classList.remove("hidden");
-            localVideoEl.play().catch(() => {});
+            attachVideoTrack(localVideoTrack, localVideoEl);
           }
           await localVideoTrack.unmute();
         }
@@ -293,7 +305,7 @@
           localVideoEl.classList.remove("hidden");
         }
         if (localVideoTrack) {
-          await livekitRoom.localParticipant.publishTrack(localVideoTrack);
+          await livekitRoom.localParticipant.publishTrack(localVideoTrack, { simulcast: false });
         }
       } catch (e) {}
     }
@@ -322,7 +334,7 @@
           localVideoEl.classList.remove("hidden");
         }
         if (localVideoTrack) {
-          await livekitRoom.localParticipant.publishTrack(localVideoTrack);
+          await livekitRoom.localParticipant.publishTrack(localVideoTrack, { simulcast: false });
         }
       } catch (e) {}
     }

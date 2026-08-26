@@ -161,6 +161,9 @@
   function attachVideoTrack(track, videoEl) {
     if (!track || !videoEl) return;
     try {
+      track.detach();
+    } catch (e) {}
+    try {
       track.attach(videoEl);
     } catch (e) {
       console.warn("[JustUS] track.attach failed:", e);

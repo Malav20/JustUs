@@ -38,6 +38,7 @@ export class TelepartySidebarUI {
   private callVolume = 0.8;
   private micVolume = 1.0;
   private isAudioSettingsOpen = false;
+  private lastPlaybackLog = { action: "", user: "", time: "", at: 0 };
 
   private onSendMessage?: (text: string) => void;
   private onSendReaction?: (emoji: string) => void;
@@ -116,6 +117,42 @@ export class TelepartySidebarUI {
     } catch (e) {}
   }
 
+  /** Shadow DOM breaks LiveKit adaptiveStream visibility — keep it disabled. */
+  private attachVideoToElement(track: RemoteTrack | LocalVideoTrack, el: HTMLVideoElement) {
+    try {
+      track.detach();
+    } catch (e) {}
+    try {
+      track.attach(el);
+    } catch (e) {
+      console.warn("[Teleparty] track.attach failed:", e);
+    }
+    el.muted = true;
+    el.setAttribute("playsinline", "true");
+    el.setAttribute("webkit-playsinline", "true");
+    el.play().catch(() => {
+      setTimeout(() => el.play().catch(() => {}), 200);
+    });
+  }
+
+  private showRemoteVideo(track: RemoteTrack) {
+    if (this.videoCallBoxEl) this.videoCallBoxEl.classList.remove("hidden");
+    if (!this.remoteVideoEl) return;
+    this.attachVideoToElement(track, this.remoteVideoEl);
+    const waitingOverlay = this.shadow?.getElementById("waiting-overlay");
+    if (waitingOverlay) waitingOverlay.classList.add("hidden");
+  }
+
+  private bindExistingRemoteVideo(room: Room) {
+    room.remoteParticipants.forEach((participant) => {
+      participant.videoTrackPublications.forEach((pub) => {
+        if (pub.track && pub.isSubscribed) {
+          this.showRemoteVideo(pub.track as RemoteTrack);
+        }
+      });
+    });
+  }
+
   public async connectWebRTC(roomId: string, userName: string, isHost = false) {
     try {
       console.log(`[Teleparty] Connecting LiveKit WebRTC for ${roomId}...`);
@@ -138,7 +175,13 @@ export class TelepartySidebarUI {
         return;
       }
 
-      const room = new Room({ adaptiveStream: true, dynacast: true });
+      const room = new Room({
+        adaptiveStream: false,
+        dynacast: false,
+        videoCaptureDefaults: {
+          resolution: { width: 640, height: 480, frameRate: 24 },
+        },
+      });
 
       room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
         const displayName = participant.name || participant.identity;
@@ -153,17 +196,8 @@ export class TelepartySidebarUI {
       });
 
       room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, pub, participant: RemoteParticipant) => {
-        if (track.kind === Track.Kind.Video && this.remoteVideoEl) {
-          if (this.videoCallBoxEl) this.videoCallBoxEl.classList.remove("hidden");
-          track.attach(this.remoteVideoEl);
-          this.remoteVideoEl.muted = true;
-          this.remoteVideoEl.setAttribute("playsinline", "true");
-          this.remoteVideoEl.setAttribute("webkit-playsinline", "true");
-          this.remoteVideoEl.play().catch(() => {
-            setTimeout(() => this.remoteVideoEl?.play().catch(() => {}), 150);
-          });
-          const waitingOverlay = this.shadow?.getElementById("waiting-overlay");
-          if (waitingOverlay) waitingOverlay.classList.add("hidden");
+        if (track.kind === Track.Kind.Video) {
+          this.showRemoteVideo(track);
         }
         if (track.kind === Track.Kind.Audio) {
           const audio = track.attach();
@@ -193,11 +227,12 @@ export class TelepartySidebarUI {
       }
 
       if (room.state === ConnectionState.Connected) {
+        this.bindExistingRemoteVideo(room);
+
         if (this.cameraEnabled) {
           try {
-            // Publish local camera track only if user still has camera enabled
             const localVideo = await createLocalVideoTrack({
-              resolution: { width: 320, height: 240, frameRate: 15 },
+              resolution: { width: 640, height: 480, frameRate: 24 },
             });
             if (!this.cameraEnabled) {
               localVideo.stop();
@@ -207,13 +242,15 @@ export class TelepartySidebarUI {
               if (localVideo.mediaStreamTrack) {
                 this.localMediaTracks.push(localVideo.mediaStreamTrack);
               }
+              if (this.videoCallBoxEl) this.videoCallBoxEl.classList.remove("hidden");
               if (this.localVideoEl) {
-                localVideo.attach(this.localVideoEl);
+                this.attachVideoToElement(localVideo, this.localVideoEl);
               }
-              await room.localParticipant.publishTrack(localVideo);
+              await room.localParticipant.publishTrack(localVideo, { simulcast: false });
             }
           } catch (e: any) {
-            console.log("[JustUS] Video track standby:", e.message);
+            console.warn("[JustUS] Video track failed:", e.message);
+            this.addEventLog("⚠️ Camera unavailable — check browser permissions", "#FF6B6B");
           }
         }
 
@@ -272,6 +309,19 @@ export class TelepartySidebarUI {
 
   public addPlaybackEvent(action: "play" | "pause" | "seek", timeFormatted: string, user: string) {
     if (!this.chatFeedEl) return;
+
+    const now = Date.now();
+    if (
+      action !== "seek" &&
+      this.lastPlaybackLog.action === action &&
+      this.lastPlaybackLog.user === user &&
+      this.lastPlaybackLog.time === timeFormatted &&
+      now - this.lastPlaybackLog.at < 2500
+    ) {
+      return;
+    }
+    this.lastPlaybackLog = { action, user, time: timeFormatted, at: now };
+
     const item = document.createElement("div");
     item.className = "tp-log-item playback-action";
 
@@ -465,13 +515,15 @@ export class TelepartySidebarUI {
         // Re-acquire hardware camera
         if (this.livekitRoom && this.livekitRoom.state === ConnectionState.Connected) {
           try {
-            const newVideo = await createLocalVideoTrack({ resolution: { width: 320, height: 240 } });
+            const newVideo = await createLocalVideoTrack({
+              resolution: { width: 640, height: 480, frameRate: 24 },
+            });
             if (this.cameraEnabled) {
               this.localVideoTrack = newVideo;
               if (this.localVideoEl) {
-                newVideo.attach(this.localVideoEl);
+                this.attachVideoToElement(newVideo, this.localVideoEl);
               }
-              await this.livekitRoom.localParticipant.publishTrack(newVideo);
+              await this.livekitRoom.localParticipant.publishTrack(newVideo, { simulcast: false });
             } else {
               newVideo.stop();
               newVideo.mediaStreamTrack?.stop();
